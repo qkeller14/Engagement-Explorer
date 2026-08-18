@@ -52,7 +52,7 @@ function deltaHtml(v) {
 }
 
 /* ---------------- boot ---------------- */
-fetch("data/engagement.json")
+fetch("engagement.json")
   .then((r) => r.json())
   .then((d) => {
     DATA = d;
