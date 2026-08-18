@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>The League — Member Engagement Explorer</title>
+<meta name="robots" content="noindex, nofollow"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <h1>Member Engagement Explorer</h1>
+    <p>Internal League staff only. Enter the shared passphrase to continue.</p>
+    <input type="password" id="gate-input" placeholder="Passphrase" autocomplete="off"/>
+    <button id="gate-btn">Enter</button>
+    <div class="gate-err" id="gate-err"></div>
+    <div class="gate-note">This is a soft gate, not real security — the site is still reachable by a direct link.
+      Don't post data from it anywhere public, and change the passphrase in app.js before sharing more broadly.</div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <header class="topbar">
+    <div class="brand">
+      <span class="name">THE LEAGUE</span>
+      <span class="sub">Member Engagement Explorer · Q1 2026</span>
+    </div>
+    <nav class="tabs" id="nav-tabs">
+      <a href="#/" data-route="/">Leaderboard</a>
+      <a href="#/awards" data-route="/awards">Awards</a>
+    </nav>
+    <div class="searchbox">
+      <input type="text" id="global-search" placeholder="Jump to a credit union…" autocomplete="off"/>
+      <div class="results" id="global-results"></div>
+    </div>
+  </header>
+
+  <main id="view"></main>
+
+  <footer class="site">
+    Built from the Q1 2026 finalized engagement dataset · internal use only · not an official League publication
+  </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
