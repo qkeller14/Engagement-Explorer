@@ -1,4 +1,4 @@
-/* ---------------- access gate (soft, client-side only — see README) ---------------- */
+/* ---------------- access gate (soft, client-side only, see README) ---------------- */
 const PASSPHRASE = "league2026"; // change me before sharing the link further
 
 (function gate() {
@@ -20,7 +20,7 @@ const PASSPHRASE = "league2026"; // change me before sharing the link further
       gateEl.classList.add("hidden");
       appEl.style.display = "";
     } else {
-      document.getElementById("gate-err").textContent = "That's not it — try again.";
+      document.getElementById("gate-err").textContent = "That's not it. Try again.";
     }
   }
 })();
@@ -31,17 +31,35 @@ let sortKey = "q1_total";
 let sortDir = "desc";
 let filters = { q: "", group: "all", state: "all" };
 
-const fmtMoney = (v) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
+const fmtMoney = (v) => (v == null ? "–" : "$" + Math.round(v).toLocaleString());
 const fmtMoneyShort = (v) => {
-  if (v == null) return "—";
+  if (v == null) return "–";
   if (v >= 1e9) return "$" + (v / 1e9).toFixed(1) + "B";
   if (v >= 1e6) return "$" + (v / 1e6).toFixed(0) + "M";
   return "$" + v.toLocaleString();
 };
-const fmtNum = (v) => (v == null ? "—" : v.toLocaleString());
+const fmtNum = (v) => (v == null ? "–" : v.toLocaleString());
 
 function tierLabel(t) {
   return t === "high" ? "Highly Engaged" : t === "mod" ? "Moderately Engaged" : "Low Engagement";
+}
+
+/* one accent color per engagement category, used consistently across the
+   detail meters, checklist headers, glossary cards, and category MVPs */
+const CAT_COLOR_VAR = {
+  advocacy: "--cat-advocacy",
+  compliance: "--cat-compliance",
+  education: "--cat-education",
+  communications: "--cat-communications",
+  collab: "--cat-collab",
+};
+function catColor(key) {
+  return `var(${CAT_COLOR_VAR[key] || "--navy"})`;
+}
+function catColorPill(key) {
+  const base = CAT_COLOR_VAR[key];
+  if (!base) return "background:var(--grid);color:var(--ink-sec);";
+  return `background:var(${base}-bg);color:var(${base}-tx);`;
 }
 
 function slugify(s) {
@@ -70,12 +88,12 @@ function termSpan(categoryKey, label) {
   const key = categoryKey + "::" + slugify(label);
   const entry = TERM_LOOKUP[key];
   if (!entry) return `<span>${label}</span>`;
-  const title = entry.source === "undocumented" ? "Not yet documented — click for details" : entry.definition.replace(/"/g, "&quot;");
+  const title = entry.source === "undocumented" ? "Not yet documented. Click for details." : entry.definition.replace(/"/g, "&quot;");
   return `<a class="term-link" href="#/glossary/${encodeURIComponent(key)}" title="${title}">${label}</a>`;
 }
 
 function deltaHtml(v) {
-  if (v == null) return '<span class="delta flat">—</span>';
+  if (v == null) return '<span class="delta flat">–</span>';
   if (v === 0) return '<span class="delta flat">▬ flat</span>';
   if (v > 0) return `<span class="delta up">▲ +${v}</span>`;
   return `<span class="delta down">▼ ${v}</span>`;
@@ -124,7 +142,7 @@ function setupSearch() {
     if (!q) { box.classList.remove("show"); box.innerHTML = ""; return; }
     const matches = DATA.cus.filter((c) => c.cu.toLowerCase().includes(q)).slice(0, 8);
     box.innerHTML = matches.map((c) =>
-      `<a href="#/cu/${encodeURIComponent(c.charter)}">${c.cu} <span style="color:var(--ink-muted)">— ${c.state}, Group ${c.asset_group}</span></a>`
+      `<a href="#/cu/${encodeURIComponent(c.charter)}">${c.cu} <span style="color:var(--ink-muted)">· ${c.state}, Group ${c.asset_group}</span></a>`
     ).join("") || `<a style="color:var(--ink-muted)">No matches</a>`;
     box.classList.add("show");
   });
@@ -216,12 +234,12 @@ function renderBody() {
   document.getElementById("board-body").innerHTML = rows.map((c) => `
     <tr onclick="location.hash='#/cu/${encodeURIComponent(c.charter)}'">
       <td class="rank-cell">#${c.overall_rank}</td>
-      <td class="cu-cell"><div class="cu-name">${c.cu}</div><div class="cu-meta">${c.state} · CEO ${c.ceo || "—"}</div></td>
+      <td class="cu-cell"><div class="cu-name">${c.cu}</div><div class="cu-meta">${c.state} · CEO ${c.ceo || "–"}</div></td>
       <td>Group ${c.asset_group}</td>
       <td>${fmtMoneyShort(c.assets)}</td>
       <td class="score-cell">${c.q1_total}<span style="color:var(--ink-muted);font-weight:500;">/${DATA.league.total_possible}</span></td>
       <td><span class="tier-pill ${c.tier}">${tierLabel(c.tier)}</span></td>
-      <td>${c.peer_avg ?? "—"}</td>
+      <td>${c.peer_avg ?? "–"}</td>
       <td>${deltaHtml(c.variance)}</td>
     </tr>
   `).join("");
@@ -237,20 +255,22 @@ function renderDetail(charter) {
     const pct = cat.possible ? Math.min(100, Math.round((cat.actual / cat.possible) * 100)) : 0;
     const avg = DATA.league.category_avgs[cat.key];
     const over = cat.actual > cat.possible;
+    const cc = catColor(cat.key);
     return `
       <div class="meter-row">
-        <div class="meter-label">${termSpan(cat.key, cat.label)}</div>
-        <div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div>
-        <div class="meter-value"${over ? ' style="color:var(--gold)"' : ""}>${cat.actual}<span class="of">/${cat.possible}</span>${over ? '<span class="avgnote" style="color:var(--gold)">exceeds category max — see note below</span>' : `<span class="avgnote">league avg ${avg}</span>`}</div>
+        <div class="meter-label"><span class="cat-dot" style="background:${cc}"></span>${termSpan(cat.key, cat.label)}</div>
+        <div class="meter-track"><div class="meter-fill" style="width:${pct}%;background:${cc}"></div></div>
+        <div class="meter-value"${over ? ' style="color:var(--gold)"' : ""}>${cat.actual}<span class="of">/${cat.possible}</span>${over ? '<span class="avgnote" style="color:var(--gold)">exceeds category max, see note below</span>' : `<span class="avgnote">league avg ${avg}</span>`}</div>
       </div>`;
   }).join("");
   const anyOverflow = c.categories.some((cat) => cat.actual > cat.possible);
 
   const checklist = c.categories.map((cat) => {
+    const cc = catColor(cat.key);
     const rows = cat.items.map((it) =>
       `<div class="item-row">${termSpan(cat.key, it.label)}<span class="item-value">${it.value}</span></div>`
     ).join("") || `<div class="item-row muted">No qualifying activity this quarter</div>`;
-    return `<div class="cat-block"><div class="cat-head">${termSpan(cat.key, cat.label)}<span>${cat.actual}/${cat.possible}</span></div>${rows}</div>`;
+    return `<div class="cat-block" style="border-left-color:${cc}"><div class="cat-head"><span class="cat-title-wrap"><span class="cat-dot" style="background:${cc}"></span>${termSpan(cat.key, cat.label)}</span><span>${cat.actual}/${cat.possible}</span></div>${rows}</div>`;
   }).join("");
 
   const ext = c.extended.map((it) =>
@@ -264,7 +284,7 @@ function renderDetail(charter) {
       <div class="identity">
         <div>
           <div class="cu-name-lg">${c.cu}</div>
-          <div class="cu-meta-lg">CEO ${c.ceo || "—"} · ${c.state} · Charter #${c.charter}</div>
+          <div class="cu-meta-lg">CEO ${c.ceo || "–"} · ${c.state} · Charter #${c.charter}</div>
         </div>
       </div>
       <div class="cu-stats">
@@ -278,12 +298,12 @@ function renderDetail(charter) {
         <div class="score-side">
           <span class="tier-pill ${c.tier}" style="width:fit-content;">${tierLabel(c.tier)}</span>
           <div>${deltaHtml(c.variance)} <span style="color:var(--ink-muted);font-size:11.5px;">vs Q4 2025</span></div>
-          <div style="font-size:11.5px;color:var(--ink-sec);">Peer average (Group ${c.asset_group}): ${c.peer_avg ?? "—"}</div>
+          <div style="font-size:11.5px;color:var(--ink-sec);">Peer average (Group ${c.asset_group}): ${c.peer_avg ?? "–"}</div>
         </div>
       </div>
       <div class="section-title">Engagement by Category</div>
       <div class="meters">${meters}</div>
-      ${anyOverflow ? `<div style="font-size:10.5px;color:var(--ink-muted);margin-top:10px;line-height:1.4;">Note: one or more categories above show more points than the usual max — the underlying data counts things like committee seats as a running total rather than a single yes/no, so a CU can exceed the typical category cap. Flagged here rather than hidden.</div>` : ""}
+      ${anyOverflow ? `<div style="font-size:10.5px;color:var(--ink-muted);margin-top:10px;line-height:1.4;">Note: one or more categories above show more points than the usual max. The underlying data counts things like committee seats as a running total rather than a single yes/no, so a CU can exceed the typical category cap. Flagged here rather than hidden.</div>` : ""}
     </div>
 
     <div class="detail-card">
@@ -342,9 +362,9 @@ function renderAwards() {
       </div>
       <div class="award-card">
         <div class="tag">Steadiest</div>
-        <div class="who">${mostConsistent ? link(mostConsistent) : "—"}</div>
+        <div class="who">${mostConsistent ? link(mostConsistent) : "–"}</div>
         <div class="why">No change vs. Q4 2025, highest score among those holding flat.</div>
-        <div class="fig">${mostConsistent ? mostConsistent.q1_total + " points, flat" : "—"}</div>
+        <div class="fig">${mostConsistent ? mostConsistent.q1_total + " points, flat" : "–"}</div>
       </div>
     </div>
 
@@ -373,20 +393,20 @@ function renderAwards() {
     <div class="section-title">Category MVPs</div>
     <div class="mvp-grid">
       ${mvps.map(({ cm, top, val }) => `
-        <div class="mvp-card">
-          <div class="cat">${cm.label}</div>
+        <div class="mvp-card" style="border-left-color:${catColor(cm.key)}">
+          <div class="cat"><span class="cat-dot" style="background:${catColor(cm.key)}"></span>${cm.label}</div>
           <div class="who">${link(top)}</div>
           <div class="fig"${val > cm.possible ? ' style="color:var(--gold)"' : ""}>${val}/${cm.possible} points${val > cm.possible ? " *" : ""}</div>
         </div>`).join("")}
     </div>
-    <div style="font-size:10.5px;color:var(--ink-muted);margin:6px 0 0;">* exceeds the usual category max — some items (like committee seats) count as a running total rather than yes/no.</div>
+    <div style="font-size:10.5px;color:var(--ink-muted);margin:6px 0 0;">* exceeds the usual category max. Some items (like committee seats) count as a running total rather than yes/no.</div>
 
     <div class="section-title">Room for Growth</div>
     <div class="award-grid">
       <div class="award-card">
         <div class="tag">Biggest Q1 Dip</div>
         <div class="who">${link(biggestDrop)}</div>
-        <div class="why">Largest point decrease since Q4 2025 — could be a good outreach candidate.</div>
+        <div class="why">Largest point decrease since Q4 2025. Could be a good outreach candidate.</div>
         <div class="fig">${biggestDrop.variance} points</div>
       </div>
     </div>
@@ -400,7 +420,7 @@ function link(c) {
 /* ---------------- glossary ---------------- */
 const SOURCE_BADGE = {
   definitions_sheet: { label: "From the Definitions sheet", cls: "src-doc" },
-  inferred: { label: "Best guess — unconfirmed", cls: "src-guess" },
+  inferred: { label: "Best guess (unconfirmed)", cls: "src-guess" },
   undocumented: { label: "Not yet documented", cls: "src-none" },
   category: { label: "Category overview", cls: "src-doc" },
 };
@@ -414,13 +434,13 @@ function renderGlossary(highlightKey) {
     <p class="glossary-intro">Hover any underlined term on a credit union's profile page to see its definition, or click it to jump here.
       Definitions marked <span class="src-badge src-doc">From the Definitions sheet</span> come straight from the League's own reference tab.
       <span class="src-badge src-guess">Best guess</span> means this conversation traced a likely connection to an older definition but it isn't confirmed.
-      <span class="src-badge src-none">Not yet documented</span> means there's no definition on file at all yet — worth adding as part of the report redesign.</p>
+      <span class="src-badge src-none">Not yet documented</span> means there's no definition on file at all yet. Worth adding as part of the report redesign.</p>
 
     ${cats.map((cat) => `
-      <div class="glossary-cat" id="term-${slugify(cat.key + "::" + cat.label)}">
+      <div class="glossary-cat" style="border-left-color:${catColor(cat.key)}" id="term-${slugify(cat.key + "::" + cat.label)}">
         <div class="glossary-cat-head">
-          <span class="glossary-cat-title">${cat.label}</span>
-          <span class="glossary-cat-possible">${cat.possible} points possible</span>
+          <span class="glossary-cat-title"><span class="cat-dot" style="background:${catColor(cat.key)};display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;"></span>${cat.label}</span>
+          <span class="glossary-cat-possible" style="${catColorPill(cat.key)}">${cat.possible} points possible</span>
         </div>
         <div class="glossary-cat-desc">${cat.description}</div>
         <div class="term-list">

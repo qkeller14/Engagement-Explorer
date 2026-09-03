@@ -8,7 +8,7 @@ IN_PATH = sys.argv[1] if len(sys.argv) > 1 else "data.xlsx"
 OUT_PATH = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(__file__), "engagement.json")
 
 wb = openpyxl.load_workbook(IN_PATH, data_only=True)
-# IMPORTANT: this assumes the same "Worksheet" tab layout used for Q1 2026 —
+# IMPORTANT: this assumes the same "Worksheet" tab layout used for Q1 2026:
 # same column order, same header row (row 3), same data start row (row 6).
 # If a future quarter's export reorders or renames columns, update the CATS
 # ranges and the fixed column indices below (charter/state/assets/etc.) to match.
@@ -22,7 +22,10 @@ CATS = [
     ("education", "Education & Professional Development", 29, 32, 3, 33),
     ("communications", "Communications", 34, 40, 7, 41),
     ("collab", "Collaborative Events", 42, 47, 5, 48),
-    ("leadership", "Executive Leadership", 49, 52, 3, 53),
+    # Executive Leadership (was columns 49-52, category total column 53, 3 points)
+    # was removed as a scored category per the report redesign decision. Total
+    # possible is now 28, not 31. Do not re-add without also revisiting q1_total
+    # and peer_avg below, which are computed from the categories that remain.
 ]
 TOTAL_POSSIBLE = sum(c[4] for c in CATS)
 
@@ -75,14 +78,22 @@ for r in rows:
             hl = "Permission Agmt Expires"
         extended.append({"label": hl, "value": clean_value(hl, v)})
 
+    # q1_total is the sum of the category actuals above (not the workbook's own
+    # "2026 Q1 Engagement Total" column, r[54]) so it always matches what the
+    # checklist/meters show now that Leadership is excluded from that sum.
+    q1_total = sum(c["actual"] for c in cats)
+
     records.append({
         "charter": r[0], "state": r[2], "assets": r[3], "members": r[4], "fte": r[5],
         "ceo": r[6], "cu": cu, "asset_group": ag,
-        "q1_total": r[54] or 0, "q4_total": r[55], "variance": r[56], "peer_avg": r[57],
+        "q1_total": q1_total, "q4_total": r[55], "variance": r[56],
         "categories": cats, "extended": extended,
     })
 
-# asset-group rank
+# asset-group rank, and peer average recomputed on the new (Leadership-excluded)
+# q1_total. The workbook's own "Peer Average" column (previously r[57]) was
+# computed on the old 31-point basis and would no longer line up with scores
+# shown on the site, so it's replaced with a same-basis average of this group.
 by_group = {}
 for d in records:
     by_group.setdefault(d["asset_group"], []).append(d)
@@ -93,9 +104,11 @@ for g, items in by_group.items():
         d["group_n"] = len(ranked)
     assets = [d["assets"] for d in items]
     lo, hi = min(assets), max(assets)
+    group_avg = round(sum(d["q1_total"] for d in items) / len(items), 1)
     for d in items:
         d["group_min"] = lo
         d["group_max"] = hi
+        d["peer_avg"] = group_avg
 
 # overall rank
 ranked_all = sorted(records, key=lambda d: d["q1_total"], reverse=True)
@@ -104,8 +117,12 @@ for i, d in enumerate(ranked_all, start=1):
 overall_n = len(records)
 
 def tier(total):
-    if total >= 21: return "high"
-    if total >= 12: return "mod"
+    # Thresholds rescaled proportionally from the original 21/31 and 12/31 cutoffs
+    # now that the 3-point Leadership category is out and the max is 28, not 31
+    # (21/31 -> ~19/28, 12/31 -> ~11/28), so "high"/"moderate"/"low" mean the same
+    # relative share of total possible points as before.
+    if total >= 19: return "high"
+    if total >= 11: return "mod"
     return "low"
 
 for d in records:
@@ -139,11 +156,11 @@ league = {
 
 # --- Glossary: hand-curated definitions, cross-referenced against the
 # Definitions tab and the current column labels above. Update this list
-# if items get renamed/added — it does not regenerate automatically.
+# if items get renamed/added. It does not regenerate automatically.
 CATEGORIES = [
   {
     "key": "advocacy", "label": "Advocacy", "possible": 9,
-    "description": "Political and regulatory engagement — contributions, advocacy events, and direct contact with regulators or elected officials.",
+    "description": "Political and regulatory engagement: contributions, advocacy events, and direct contact with regulators or elected officials.",
     "terms": [
       {"term": "Political Corporate Contribution", "source": "definitions_sheet",
        "definition": "Any corporate PAC contribution over the past 12 months. Data provided quarterly from Advocacy and through the dues process."},
@@ -158,7 +175,7 @@ CATEGORIES = [
       {"term": "GAC & GRR & HTH", "source": "definitions_sheet",
        "definition": "Attendance at GAC, GRR, and/or Hike the Hill within the past 12 months (originally listed as 'GRR / GAC / Hike The Hill'), pulled from Cvent and/or provided by Advocacy."},
       {"term": "Advocacy Workships", "source": "undocumented",
-       "definition": "Not in the Definitions sheet (also a likely typo for \"Advocacy Workshops\" in the source column header — worth fixing either way)."},
+       "definition": "Not in the Definitions sheet (also a likely typo for \"Advocacy Workshops\" in the source column header, worth fixing either way)."},
       {"term": "Regulatory Activities & Events", "source": "definitions_sheet",
        "definition": "Attendance at regulatory activities/events within the past 12 months. Sourced from the Advocacy Blog / Mail Chimp and/or provided directly by Advocacy staff."},
       {"term": "Elected Officials Meetings & Fundraisers", "source": "definitions_sheet",
@@ -176,7 +193,7 @@ CATEGORIES = [
       {"term": "Infosight", "source": "definitions_sheet",
        "definition": "Participation/hits on InfoSight within the past 12 months. Provided monthly by ViClarity."},
       {"term": "ViClarity Contracted Services", "source": "inferred",
-       "definition": "Not directly defined under this name. The Definitions sheet lists a fourth ViClarity product — \"Policy Works Comply Site\" — that isn't separately tracked anywhere else in the current data; this may be what \"ViClarity Contracted Services\" is meant to capture, but that's an educated guess, not a confirmed definition. Flagged in the redesign discussion as needing a clear definition either way."},
+       "definition": "Not directly defined under this name. The Definitions sheet lists a fourth ViClarity product, \"Policy Works Comply Site,\" that isn't separately tracked anywhere else in the current data; this may be what \"ViClarity Contracted Services\" is meant to capture, but that's an educated guess, not a confirmed definition. Flagged in the redesign discussion as needing a clear definition either way."},
     ],
   },
   {
@@ -184,7 +201,7 @@ CATEGORIES = [
     "description": "Use of League training content and structured learning programs. Called \"Education & Meetings\" in the older Definitions sheet.",
     "terms": [
       {"term": "Online Educational Content", "source": "inferred",
-       "definition": "Likely the successor to \"Webinars\" in the Definitions sheet (participation in eTrain/Content Management webinars within the past 12 months) — not confirmed under the current name. Note: this exact label is reused under Communications for a different measure (email opens) — see the Communications section."},
+       "definition": "Likely the successor to \"Webinars\" in the Definitions sheet (participation in eTrain/Content Management webinars within the past 12 months), not confirmed under the current name. Note: this exact label is reused under Communications for a different measure (email opens); see the Communications section."},
       {"term": "Programs & Series", "source": "undocumented",
        "definition": "Not in the Definitions sheet. Breaks down on page 2 into Solutions Webinars, Impact Power Hour, Ignite, and Compliance Essentials."},
       {"term": "Certificate Programs", "source": "undocumented",
@@ -198,11 +215,11 @@ CATEGORIES = [
       {"term": "CU Weekly", "source": "definitions_sheet",
        "definition": "Open activity on the CU Weekly newsletter within the past 12 months, pulled weekly from Mail Chimp."},
       {"term": "Online Educational Content", "source": "undocumented",
-       "definition": "Not in the Definitions sheet under this name — tracked here as an email-open count, distinct from the eTrain consumption measure of the same name under Education & Professional Development. Same label, two different things; worth renaming one of them."},
+       "definition": "Not in the Definitions sheet under this name. Tracked here as an email-open count, distinct from the eTrain consumption measure of the same name under Education & Professional Development. Same label, two different things; worth renaming one of them."},
       {"term": "Advocacy Communications", "source": "inferred",
-       "definition": "Possible successor to \"Advocacy Blog\" in the Definitions sheet — not confirmed under the current name."},
+       "definition": "Possible successor to \"Advocacy Blog\" in the Definitions sheet, not confirmed under the current name."},
       {"term": "Desk of CEO & MFL", "source": "inferred",
-       "definition": "\"MFL\" = Messages From the League. Possible successor to \"Desk of Diana\" in the Definitions sheet (the label has already been updated once from a specific name to \"CEO\" — see the naming-drift discussion from the report redesign review)."},
+       "definition": "\"MFL\" = Messages From the League. Possible successor to \"Desk of Diana\" in the Definitions sheet (the label has already been updated once from a specific name to \"CEO\"; see the naming-drift discussion from the report redesign review)."},
       {"term": "League Business Partner Communications", "source": "undocumented",
        "definition": "Not in the Definitions sheet."},
       {"term": "League Education & Events", "source": "undocumented",
@@ -220,25 +237,17 @@ CATEGORIES = [
       {"term": "Collaborative Events:", "source": "inferred",
        "definition": "Generic catch-all for collaborative events; possibly related to \"Communities\" (Breezio) in the Definitions sheet, unconfirmed."},
       {"term": "Networks", "source": "inferred",
-       "definition": "Possibly related to \"Communities\" (Breezio) in the Definitions sheet — breaks down on page 2 into Shapiro Network, Financial Counselors, Mid CU, and PR & Media Relations. Not confirmed under the current name."},
+       "definition": "Possibly related to \"Communities\" (Breezio) in the Definitions sheet. Breaks down on page 2 into Shapiro Network, Financial Counselors, Mid CU, and PR & Media Relations. Not confirmed under the current name."},
       {"term": "CEO Calls", "source": "definitions_sheet",
        "definition": "Current participant in CEO Calls, pulled from Cvent/Content Manager or sign-up sheets as events occur."},
       {"term": "CEO Roundtable", "source": "definitions_sheet",
        "definition": "Current participant in CEO Roundtables (SRT, WSRT, etc.), pulled from Cvent/Content Manager or sign-up sheets as events occur."},
     ],
   },
-  {
-    "key": "leadership", "label": "Executive Leadership", "possible": 3,
-    "description": "Direct participation in League and industry governance. Called simply \"Leadership\" in some report versions — see the naming-drift discussion.",
-    "terms": [
-      {"term": "Committee Seat", "source": "definitions_sheet",
-       "definition": "Current League Board/Committee seat holder. Data provided by League admin in PDF format. Note: seen counted as a running total (e.g. \"3\") rather than yes/no for CUs holding multiple seats, which can push this category's total above its usual 3-point cap."},
-      {"term": "America's Credit Unions Committees", "source": "inferred",
-       "definition": "Successor to \"CUNA Board/Committees\" in the Definitions sheet — CUNA and NAFCU merged to form America's Credit Unions in 2023, so this is very likely the same measure under the trade association's new name, though the Definitions sheet itself hasn't been updated to reflect it."},
-      {"term": "Voted in 2025 League Elections", "source": "definitions_sheet",
-       "definition": "Participated in the most recent League election. Provided annually."},
-    ],
-  },
+  # Executive Leadership was removed as a scored category per the report
+  # redesign decision (Committee Seat, America's Credit Unions Committees,
+  # Voted in 2025 League Elections). Its 3 points no longer count toward any
+  # CU's total, and it's dropped from the Glossary below to match.
 ]
 
 out = {"league": league, "cus": records, "glossary": CATEGORIES}
