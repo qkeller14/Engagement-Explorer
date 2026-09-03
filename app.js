@@ -108,6 +108,7 @@ fetch("engagement.json")
     window.addEventListener("hashchange", route);
     route();
     setupSearch();
+    document.getElementById("print-fab").addEventListener("click", () => window.print());
   });
 
 function currentRoute() {
