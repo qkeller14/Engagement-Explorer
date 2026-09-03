@@ -44,6 +44,36 @@ function tierLabel(t) {
   return t === "high" ? "Highly Engaged" : t === "mod" ? "Moderately Engaged" : "Low Engagement";
 }
 
+function slugify(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+/* term key = "<category key>::<slugified term>" so the same label under two
+   categories (e.g. "Online Educational Content") resolves to two different entries */
+let TERM_LOOKUP = {};
+function buildTermLookup() {
+  TERM_LOOKUP = {};
+  (DATA.glossary || []).forEach((cat) => {
+    TERM_LOOKUP[cat.key + "::" + slugify(cat.label)] = {
+      term: cat.label, definition: cat.description, source: "category",
+      categoryKey: cat.key, categoryLabel: cat.label,
+    };
+    cat.terms.forEach((t) => {
+      TERM_LOOKUP[cat.key + "::" + slugify(t.term)] = { ...t, categoryKey: cat.key, categoryLabel: cat.label };
+    });
+  });
+}
+
+/* Wraps a category/item label as a hoverable, clickable link into the Glossary
+   tab when a matching definition exists; otherwise returns the plain label. */
+function termSpan(categoryKey, label) {
+  const key = categoryKey + "::" + slugify(label);
+  const entry = TERM_LOOKUP[key];
+  if (!entry) return `<span>${label}</span>`;
+  const title = entry.source === "undocumented" ? "Not yet documented — click for details" : entry.definition.replace(/"/g, "&quot;");
+  return `<a class="term-link" href="#/glossary/${encodeURIComponent(key)}" title="${title}">${label}</a>`;
+}
+
 function deltaHtml(v) {
   if (v == null) return '<span class="delta flat">—</span>';
   if (v === 0) return '<span class="delta flat">▬ flat</span>';
@@ -56,6 +86,7 @@ fetch("engagement.json")
   .then((r) => r.json())
   .then((d) => {
     DATA = d;
+    buildTermLookup();
     window.addEventListener("hashchange", route);
     route();
     setupSearch();
@@ -68,14 +99,20 @@ function currentRoute() {
 
 function route() {
   const r = currentRoute();
+  const navKey = r.startsWith("/cu/") ? "" : r.startsWith("/glossary") ? "/glossary" : r;
   document.querySelectorAll("#nav-tabs a").forEach((a) => {
-    a.classList.toggle("active", a.getAttribute("data-route") === (r.startsWith("/cu/") ? "" : r));
+    a.classList.toggle("active", a.getAttribute("data-route") === navKey);
   });
-  if (r === "/" ) renderLeaderboard();
-  else if (r === "/awards") renderAwards();
-  else if (r.startsWith("/cu/")) renderDetail(decodeURIComponent(r.slice(4)));
-  else renderLeaderboard();
-  window.scrollTo(0, 0);
+  if (r === "/" ) { renderLeaderboard(); window.scrollTo(0, 0); }
+  else if (r === "/awards") { renderAwards(); window.scrollTo(0, 0); }
+  else if (r.startsWith("/cu/")) { renderDetail(decodeURIComponent(r.slice(4))); window.scrollTo(0, 0); }
+  else if (r.startsWith("/glossary")) {
+    const rest = r.slice("/glossary".length).replace(/^\//, "");
+    const target = rest ? decodeURIComponent(rest) : null;
+    renderGlossary(target);
+    if (!target) window.scrollTo(0, 0); // renderGlossary handles its own scroll when jumping to a term
+  }
+  else { renderLeaderboard(); window.scrollTo(0, 0); }
 }
 
 /* ---------------- search ---------------- */
@@ -202,7 +239,7 @@ function renderDetail(charter) {
     const over = cat.actual > cat.possible;
     return `
       <div class="meter-row">
-        <div class="meter-label">${cat.label}</div>
+        <div class="meter-label">${termSpan(cat.key, cat.label)}</div>
         <div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div>
         <div class="meter-value"${over ? ' style="color:var(--gold)"' : ""}>${cat.actual}<span class="of">/${cat.possible}</span>${over ? '<span class="avgnote" style="color:var(--gold)">exceeds category max — see note below</span>' : `<span class="avgnote">league avg ${avg}</span>`}</div>
       </div>`;
@@ -211,9 +248,9 @@ function renderDetail(charter) {
 
   const checklist = c.categories.map((cat) => {
     const rows = cat.items.map((it) =>
-      `<div class="item-row"><span>${it.label}</span><span class="item-value">${it.value}</span></div>`
+      `<div class="item-row">${termSpan(cat.key, it.label)}<span class="item-value">${it.value}</span></div>`
     ).join("") || `<div class="item-row muted">No qualifying activity this quarter</div>`;
-    return `<div class="cat-block"><div class="cat-head">${cat.label}<span>${cat.actual}/${cat.possible}</span></div>${rows}</div>`;
+    return `<div class="cat-block"><div class="cat-head">${termSpan(cat.key, cat.label)}<span>${cat.actual}/${cat.possible}</span></div>${rows}</div>`;
   }).join("");
 
   const ext = c.extended.map((it) =>
@@ -358,4 +395,55 @@ function renderAwards() {
 
 function link(c) {
   return `<a href="#/cu/${encodeURIComponent(c.charter)}">${c.cu}</a>`;
+}
+
+/* ---------------- glossary ---------------- */
+const SOURCE_BADGE = {
+  definitions_sheet: { label: "From the Definitions sheet", cls: "src-doc" },
+  inferred: { label: "Best guess — unconfirmed", cls: "src-guess" },
+  undocumented: { label: "Not yet documented", cls: "src-none" },
+  category: { label: "Category overview", cls: "src-doc" },
+};
+
+function renderGlossary(highlightKey) {
+  const view = document.getElementById("view");
+  const cats = DATA.glossary || [];
+
+  view.innerHTML = `
+    <div class="section-title" style="margin-top:0;">What Each Term Means</div>
+    <p class="glossary-intro">Hover any underlined term on a credit union's profile page to see its definition, or click it to jump here.
+      Definitions marked <span class="src-badge src-doc">From the Definitions sheet</span> come straight from the League's own reference tab.
+      <span class="src-badge src-guess">Best guess</span> means this conversation traced a likely connection to an older definition but it isn't confirmed.
+      <span class="src-badge src-none">Not yet documented</span> means there's no definition on file at all yet — worth adding as part of the report redesign.</p>
+
+    ${cats.map((cat) => `
+      <div class="glossary-cat" id="term-${slugify(cat.key + "::" + cat.label)}">
+        <div class="glossary-cat-head">
+          <span class="glossary-cat-title">${cat.label}</span>
+          <span class="glossary-cat-possible">${cat.possible} points possible</span>
+        </div>
+        <div class="glossary-cat-desc">${cat.description}</div>
+        <div class="term-list">
+          ${cat.terms.map((t) => {
+            const key = cat.key + "::" + slugify(t.term);
+            const badge = SOURCE_BADGE[t.source] || SOURCE_BADGE.undocumented;
+            return `
+              <div class="term-row" id="term-${slugify(key)}">
+                <div class="term-name">${t.term} <span class="src-badge ${badge.cls}">${badge.label}</span></div>
+                <div class="term-def">${t.definition}</div>
+              </div>`;
+          }).join("")}
+        </div>
+      </div>
+    `).join("")}
+  `;
+
+  if (highlightKey) {
+    const el = document.getElementById("term-" + slugify(highlightKey));
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("term-highlight");
+      setTimeout(() => el.classList.remove("term-highlight"), 2200);
+    }
+  }
 }

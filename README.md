@@ -1,12 +1,13 @@
 # Member Engagement Explorer
 
 A small internal website for browsing the League's quarterly member engagement
-data — a leaderboard, per-credit-union profile pages, and an "Awards" page
+data — a leaderboard, per-credit-union profile pages, an "Awards" page
 (league champion, most improved, category MVPs, asset-group champions, etc.),
-built from the Q1 2026 finalized engagement dataset.
+and a Glossary page explaining what every scored item means — built from the
+Q1 2026 finalized engagement dataset.
 
 It's a static site: plain HTML/CSS/JS, no build step, no server-side code.
-Everything runs in the browser and reads from `data/engagement.json`.
+Everything runs in the browser and reads from `engagement.json`.
 
 ## Putting it on GitHub Pages
 
@@ -17,9 +18,10 @@ it's a few clicks in your own account:
    `engagement-explorer`. It can be **public or private** — see the note on
    access below before deciding.
 2. Upload all the files in this folder (`index.html`, `styles.css`, `app.js`,
-   the `data/` folder, this `README.md`) to that repo — either drag-and-drop
-   in the GitHub web UI ("Add file → Upload files"), or `git push` if you're
-   comfortable with git.
+   `engagement.json`, `build_data.py`, this `README.md`) to that repo —
+   either drag-and-drop in the GitHub web UI ("Add file → Upload files"), or
+   `git push` if you're comfortable with git. Keep them all at the top level
+   of the repo — no subfolders.
 3. In the repo, go to **Settings → Pages**. Under "Build and deployment,"
    set Source to **Deploy from a branch**, branch `main`, folder `/ (root)`.
    Save.
@@ -37,8 +39,8 @@ You said this should stay internal to League staff. Two things to know:
   *always* public.
 - **The passphrase gate in this site (`app.js`, `PASSPHRASE` near the top)
   is a soft deterrent, not real security.** It stops someone from casually
-  landing on the page, but the data (`data/engagement.json`) is still a
-  plain file anyone with the URL could fetch directly, gate or no gate.
+  landing on the page, but the data (`engagement.json`) is still a plain
+  file anyone with the URL could fetch directly, gate or no gate.
   `index.html` also has `<meta name="robots" content="noindex, nofollow">`
   so search engines shouldn't index it, but that's a request, not an
   enforcement.
@@ -55,12 +57,12 @@ this README.
 
 ## Updating it next quarter
 
-The site reads one file: `data/engagement.json`. To refresh it from a new
-quarterly export:
+The site reads one file: `engagement.json`, sitting next to `index.html`.
+To refresh it from a new quarterly export, run this with both files in the
+same folder:
 
 ```
-cd scripts
-python3 build_data.py /path/to/next_quarter_export.xlsx ../data/engagement.json
+python3 build_data.py /path/to/next_quarter_export.xlsx engagement.json
 ```
 
 This assumes the new export uses the same "Worksheet" tab layout as the
@@ -69,7 +71,13 @@ future export reorders columns or renames the tab, open `build_data.py` and
 adjust the column indices at the top (the `CATS` list and the fixed indices
 for charter/state/assets/CEO/etc.) to match. Requires `pip install openpyxl`.
 
-Then re-upload the updated `data/engagement.json` to the GitHub repo (or
+The glossary (term definitions on the Glossary page and the hover/click
+tooltips throughout the site) is hand-curated inside `build_data.py` — look
+for the `CATEGORIES` list near the bottom of the file. If a future quarter
+renames or adds a scored item, add or update its entry there so the glossary
+stays in sync; it won't pick up new items automatically.
+
+Then re-upload the updated `engagement.json` to the GitHub repo (or
 `git push` it) — GitHub Pages picks up the change automatically, usually
 within a minute.
 
@@ -80,10 +88,18 @@ within a minute.
   to open that CU's profile.
 - **Credit union profile** (`#/cu/<charter>`) — the same category breakdown,
   peer comparison, and activity detail used in the report-card mockups,
-  now for every CU in the dataset.
+  now for every CU in the dataset. Any scored item with a known definition
+  is underlined — hover for a quick tooltip, or click to jump straight to
+  its full entry on the Glossary page.
 - **Awards** (`#/awards`) — league champion, most improved, steadiest,
   perfect-score club, asset-group champions, and a "category MVP" for each
   of the six engagement categories.
+- **Glossary** (`#/glossary`) — what every scored item means, grouped by
+  category. Each term is tagged with where its definition comes from:
+  confirmed against the League's official Definitions sheet, an educated
+  guess based on how the item lines up with older documentation, or not
+  documented anywhere we could find. That last group is worth a look —
+  it's a real list of items nobody has ever written a definition for.
 
 A couple of credit unions show a category total higher than that category's
 usual point cap (flagged in gold on their profile and on the Awards page) —

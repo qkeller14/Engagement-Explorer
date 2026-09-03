@@ -1,10 +1,11 @@
 import openpyxl, json, datetime, sys, os
 
 # Usage: python3 build_data.py [path/to/quarterly_export.xlsx] [path/to/output.json]
-# Defaults assume you run this from the scripts/ folder with the xlsx one level up,
-# and write straight into ../data/engagement.json (what index.html fetches).
+# Defaults assume everything lives in one flat folder (matching the live GitHub
+# Pages repo layout): run this next to the quarterly xlsx export, and it writes
+# straight into ./engagement.json (what index.html fetches) in the same folder.
 IN_PATH = sys.argv[1] if len(sys.argv) > 1 else "data.xlsx"
-OUT_PATH = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(__file__), "..", "data", "engagement.json")
+OUT_PATH = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(__file__), "engagement.json")
 
 wb = openpyxl.load_workbook(IN_PATH, data_only=True)
 # IMPORTANT: this assumes the same "Worksheet" tab layout used for Q1 2026 —
@@ -136,7 +137,111 @@ league = {
     "asset_groups": group_labels,
 }
 
-out = {"league": league, "cus": records}
+# --- Glossary: hand-curated definitions, cross-referenced against the
+# Definitions tab and the current column labels above. Update this list
+# if items get renamed/added — it does not regenerate automatically.
+CATEGORIES = [
+  {
+    "key": "advocacy", "label": "Advocacy", "possible": 9,
+    "description": "Political and regulatory engagement — contributions, advocacy events, and direct contact with regulators or elected officials.",
+    "terms": [
+      {"term": "Political Corporate Contribution", "source": "definitions_sheet",
+       "definition": "Any corporate PAC contribution over the past 12 months. Data provided quarterly from Advocacy and through the dues process."},
+      {"term": "Political Individual Contribution", "source": "definitions_sheet",
+       "definition": "Any individual PAC contribution over the past 12 months. Pulled quarterly in Excel and logged as contributions occur."},
+      {"term": "Permission Agreement", "source": "definitions_sheet",
+       "definition": "Whether the CU has a current signed permission agreement on file. Individual signed forms are provided as received."},
+      {"term": "Project Zip Code", "source": "definitions_sheet",
+       "definition": "Whether Project Zip Code data was updated within the past 12 months. Pulled quarterly from CUNA/America's Credit Unions in Excel format."},
+      {"term": "Connect For The Cause", "source": "definitions_sheet",
+       "definition": "Any active participation in Connect For The Cause over the past 12 months, pulled from VoterVoice."},
+      {"term": "GAC & GRR & HTH", "source": "definitions_sheet",
+       "definition": "Attendance at GAC, GRR, and/or Hike the Hill within the past 12 months (originally listed as 'GRR / GAC / Hike The Hill'), pulled from Cvent and/or provided by Advocacy."},
+      {"term": "Advocacy Workships", "source": "undocumented",
+       "definition": "Not in the Definitions sheet (also a likely typo for \"Advocacy Workshops\" in the source column header — worth fixing either way)."},
+      {"term": "Regulatory Activities & Events", "source": "definitions_sheet",
+       "definition": "Attendance at regulatory activities/events within the past 12 months. Sourced from the Advocacy Blog / Mail Chimp and/or provided directly by Advocacy staff."},
+      {"term": "Elected Officials Meetings & Fundraisers", "source": "definitions_sheet",
+       "definition": "Attendance at elected-official activities/events (in-district meetings, fundraisers, official visits) within the past 12 months."},
+    ],
+  },
+  {
+    "key": "compliance", "label": "Compliance Support", "possible": 4,
+    "description": "Use of the League's compliance tools and support channels, all sourced from ViClarity.",
+    "terms": [
+      {"term": "Hot Line Calls", "source": "definitions_sheet",
+       "definition": "Participation in the Compliance Hot Line (phone & email) within the past 12 months. Provided monthly by ViClarity."},
+      {"term": "Policy Pro", "source": "definitions_sheet",
+       "definition": "Participation/log-ins in Policy Pro within the past 12 months. Provided monthly by ViClarity."},
+      {"term": "Infosight", "source": "definitions_sheet",
+       "definition": "Participation/hits on InfoSight within the past 12 months. Provided monthly by ViClarity."},
+      {"term": "ViClarity Contracted Services", "source": "inferred",
+       "definition": "Not directly defined under this name. The Definitions sheet lists a fourth ViClarity product — \"Policy Works Comply Site\" — that isn't separately tracked anywhere else in the current data; this may be what \"ViClarity Contracted Services\" is meant to capture, but that's an educated guess, not a confirmed definition. Flagged in the redesign discussion as needing a clear definition either way."},
+    ],
+  },
+  {
+    "key": "education", "label": "Education & Professional Development", "possible": 3,
+    "description": "Use of League training content and structured learning programs. Called \"Education & Meetings\" in the older Definitions sheet.",
+    "terms": [
+      {"term": "Online Educational Content", "source": "inferred",
+       "definition": "Likely the successor to \"Webinars\" in the Definitions sheet (participation in eTrain/Content Management webinars within the past 12 months) — not confirmed under the current name. Note: this exact label is reused under Communications for a different measure (email opens) — see the Communications section."},
+      {"term": "Programs & Series", "source": "undocumented",
+       "definition": "Not in the Definitions sheet. Breaks down on page 2 into Solutions Webinars, Impact Power Hour, Ignite, and Compliance Essentials."},
+      {"term": "Certificate Programs", "source": "undocumented",
+       "definition": "Not in the Definitions sheet. Breaks down on page 2 into Financial Counselors Academy, Next Gen, and Succession Planning."},
+    ],
+  },
+  {
+    "key": "communications", "label": "Communications", "possible": 7,
+    "description": "Open/engagement activity across the League's member email channels. Called \"News\" in the older Definitions sheet.",
+    "terms": [
+      {"term": "CU Weekly", "source": "definitions_sheet",
+       "definition": "Open activity on the CU Weekly newsletter within the past 12 months, pulled weekly from Mail Chimp."},
+      {"term": "Online Educational Content", "source": "undocumented",
+       "definition": "Not in the Definitions sheet under this name — tracked here as an email-open count, distinct from the eTrain consumption measure of the same name under Education & Professional Development. Same label, two different things; worth renaming one of them."},
+      {"term": "Advocacy Communications", "source": "inferred",
+       "definition": "Possible successor to \"Advocacy Blog\" in the Definitions sheet — not confirmed under the current name."},
+      {"term": "Desk of CEO & MFL", "source": "inferred",
+       "definition": "\"MFL\" = Messages From the League. Possible successor to \"Desk of Diana\" in the Definitions sheet (the label has already been updated once from a specific name to \"CEO\" — see the naming-drift discussion from the report redesign review)."},
+      {"term": "League Business Partner Communications", "source": "undocumented",
+       "definition": "Not in the Definitions sheet."},
+      {"term": "League Education & Events", "source": "undocumented",
+       "definition": "Not in the Definitions sheet."},
+      {"term": "Compliance Communications", "source": "undocumented",
+       "definition": "Not in the Definitions sheet."},
+    ],
+  },
+  {
+    "key": "collab", "label": "Collaborative Events", "possible": 5,
+    "description": "Participation in League-hosted events, networks, and CEO-level gatherings.",
+    "terms": [
+      {"term": "2025 REACH", "source": "definitions_sheet",
+       "definition": "Participation in REACH within the past 12 months, pulled from Cvent as events occur."},
+      {"term": "Collaborative Events:", "source": "inferred",
+       "definition": "Generic catch-all for collaborative events; possibly related to \"Communities\" (Breezio) in the Definitions sheet, unconfirmed."},
+      {"term": "Networks", "source": "inferred",
+       "definition": "Possibly related to \"Communities\" (Breezio) in the Definitions sheet — breaks down on page 2 into Shapiro Network, Financial Counselors, Mid CU, and PR & Media Relations. Not confirmed under the current name."},
+      {"term": "CEO Calls", "source": "definitions_sheet",
+       "definition": "Current participant in CEO Calls, pulled from Cvent/Content Manager or sign-up sheets as events occur."},
+      {"term": "CEO Roundtable", "source": "definitions_sheet",
+       "definition": "Current participant in CEO Roundtables (SRT, WSRT, etc.), pulled from Cvent/Content Manager or sign-up sheets as events occur."},
+    ],
+  },
+  {
+    "key": "leadership", "label": "Executive Leadership", "possible": 3,
+    "description": "Direct participation in League and industry governance. Called simply \"Leadership\" in some report versions — see the naming-drift discussion.",
+    "terms": [
+      {"term": "Committee Seat", "source": "definitions_sheet",
+       "definition": "Current League Board/Committee seat holder. Data provided by League admin in PDF format. Note: seen counted as a running total (e.g. \"3\") rather than yes/no for CUs holding multiple seats, which can push this category's total above its usual 3-point cap."},
+      {"term": "America's Credit Unions Committees", "source": "inferred",
+       "definition": "Successor to \"CUNA Board/Committees\" in the Definitions sheet — CUNA and NAFCU merged to form America's Credit Unions in 2023, so this is very likely the same measure under the trade association's new name, though the Definitions sheet itself hasn't been updated to reflect it."},
+      {"term": "Voted in 2025 League Elections", "source": "definitions_sheet",
+       "definition": "Participated in the most recent League election. Provided annually."},
+    ],
+  },
+]
+
+out = {"league": league, "cus": records, "glossary": CATEGORIES}
 with open(OUT_PATH, "w") as f:
     json.dump(out, f, default=str)
 
