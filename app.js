@@ -123,6 +123,9 @@ function route() {
     a.classList.toggle("active", a.getAttribute("data-route") === navKey);
   });
   if (r === "/" ) { renderLeaderboard(); window.scrollTo(0, 0); }
+  else if (r === "/directory") { renderDirectory(); window.scrollTo(0, 0); }
+  else if (r === "/industry") { renderIndustry(); window.scrollTo(0, 0); }
+  else if (r === "/changes") { renderChanges(); window.scrollTo(0, 0); }
   else if (r === "/awards") { renderAwards(); window.scrollTo(0, 0); }
   else if (r.startsWith("/cu/")) { renderDetail(decodeURIComponent(r.slice(4))); window.scrollTo(0, 0); }
   else if (r.startsWith("/glossary")) {
@@ -278,6 +281,25 @@ function renderDetail(charter) {
     `<div class="ext-row"><span class="ext-label">${it.label}</span><span class="ext-value">${it.value}</span></div>`
   ).join("");
 
+  const org = c.org || {};
+  const orgRows = [];
+  if (org.ceo_email) orgRows.push(["CEO Email", `<a href="mailto:${org.ceo_email}">${org.ceo_email}</a>`]);
+  if (org.ceo_phone) orgRows.push(["CEO Phone", org.ceo_phone]);
+  if (org.hq_address) orgRows.push(["HQ Address", `${org.hq_address}, ${org.hq_city || ""} ${org.hq_state || ""} ${org.hq_zip || ""}`.trim()]);
+  if (org.county) orgRows.push(["County", org.county]);
+  if (org.cong_dist) orgRows.push(["Congressional District", org.cong_dist]);
+  if (org.charter_type) orgRows.push(["Charter Type", org.charter_type]);
+  if (org.chapter) orgRows.push(["Chapter / Network", org.chapter]);
+  if (org.member_status) orgRows.push(["Member Status", org.member_status]);
+  if (org.branches != null) orgRows.push(["Branches", org.branches]);
+  if (org.cdfi) orgRows.push(["CDFI Designated", org.cdfi]);
+  if (org.low_income) orgRows.push(["Low-Income Designated", org.low_income]);
+  const orgGrid = orgRows.map(([label, value]) =>
+    `<div class="ext-row"><span class="ext-label">${label}</span><span class="ext-value">${value}</span></div>`
+  ).join("");
+  const formerNameBadge = org.former_name
+    ? `<div class="former-name-badge">Formerly ${org.former_name}</div>` : "";
+
   view.innerHTML = `
     <a class="back-link" href="#/">&larr; Back to leaderboard</a>
     <div class="detail-card">
@@ -286,6 +308,7 @@ function renderDetail(charter) {
         <div>
           <div class="cu-name-lg">${c.cu}</div>
           <div class="cu-meta-lg">CEO ${c.ceo || "–"} · ${c.state} · Charter #${c.charter}</div>
+          ${formerNameBadge}
         </div>
       </div>
       <div class="cu-stats">
@@ -306,6 +329,12 @@ function renderDetail(charter) {
       <div class="meters">${meters}</div>
       ${anyOverflow ? `<div style="font-size:10.5px;color:var(--ink-muted);margin-top:10px;line-height:1.4;">Note: one or more categories above show more points than the usual max. The underlying data counts things like committee seats as a running total rather than a single yes/no, so a CU can exceed the typical category cap. Flagged here rather than hidden.</div>` : ""}
     </div>
+
+    ${orgRows.length ? `
+    <div class="detail-card">
+      <div class="section-title">Organization &amp; Contact <span class="source-tag">source: League roster</span></div>
+      <div class="ext-grid">${orgGrid}</div>
+    </div>` : ""}
 
     <div class="detail-card">
       <div class="section-title">Activity Checklist</div>
@@ -416,6 +445,203 @@ function renderAwards() {
 
 function link(c) {
   return `<a href="#/cu/${encodeURIComponent(c.charter)}">${c.cu}</a>`;
+}
+
+/* ---------------- directory ---------------- */
+let dirFilters = { q: "", status: "all" };
+let dirSortKey = "name";
+let dirSortDir = "asc";
+
+function renderDirectory() {
+  const view = document.getElementById("view");
+  const statuses = [...new Set(DATA.directory.map((d) => d.member_status).filter(Boolean))].sort();
+  const statusOptions = statuses.map((s) => `<option value="${s}">${s}</option>`).join("");
+
+  view.innerHTML = `
+    <div class="section-title" style="margin-top:0;">Credit Union Directory</div>
+    <p class="glossary-intro">CEO contact, HQ, and charter info for every credit union in the League's roster,
+      not just the ones with Q1 2026 engagement data. Source: the League's roster file, kept separately from
+      the quarterly engagement export. Click a row to open that CU's full profile, where one exists.</p>
+
+    <div class="filters">
+      <input type="text" id="dir-search" placeholder="Search by name or CEO…" value="${dirFilters.q}"/>
+      <select id="dir-status"><option value="all">All statuses</option>${statusOptions}</select>
+      <span class="count" id="dir-count"></span>
+    </div>
+
+    <table class="board">
+      <thead>
+        <tr>
+          <th data-key="name">Credit Union</th>
+          <th data-key="ceo">CEO</th>
+          <th data-key="ceo_phone">Phone</th>
+          <th data-key="hq_city">HQ</th>
+          <th data-key="charter_type">Charter Type</th>
+          <th data-key="member_status">Status</th>
+          <th data-key="branches">Branches</th>
+        </tr>
+      </thead>
+      <tbody id="dir-body"></tbody>
+    </table>
+  `;
+
+  document.getElementById("dir-search").addEventListener("input", (e) => { dirFilters.q = e.target.value; renderDirectoryBody(); });
+  document.getElementById("dir-status").addEventListener("change", (e) => { dirFilters.status = e.target.value; renderDirectoryBody(); });
+  document.querySelectorAll("#view th[data-key]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const k = th.getAttribute("data-key");
+      if (dirSortKey === k) dirSortDir = dirSortDir === "asc" ? "desc" : "asc";
+      else { dirSortKey = k; dirSortDir = "asc"; }
+      renderDirectoryBody();
+    });
+  });
+
+  renderDirectoryBody();
+}
+
+function renderDirectoryBody() {
+  const engagedCharters = new Set(DATA.cus.map((c) => c.charter));
+  let rows = DATA.directory.filter((d) => {
+    if (dirFilters.q) {
+      const q = dirFilters.q.toLowerCase();
+      if (!d.name.toLowerCase().includes(q) && !(d.ceo || "").toLowerCase().includes(q)) return false;
+    }
+    if (dirFilters.status !== "all" && d.member_status !== dirFilters.status) return false;
+    return true;
+  });
+  rows.sort((a, b) => {
+    let av = a[dirSortKey], bv = b[dirSortKey];
+    if (typeof av === "string") av = av.toLowerCase();
+    if (typeof bv === "string") bv = bv.toLowerCase();
+    if (av == null) av = "";
+    if (bv == null) bv = "";
+    if (av < bv) return dirSortDir === "asc" ? -1 : 1;
+    if (av > bv) return dirSortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  document.getElementById("dir-count").textContent = `${rows.length} of ${DATA.directory.length} credit unions`;
+  document.getElementById("dir-body").innerHTML = rows.map((d) => {
+    const clickable = d.charter != null && engagedCharters.has(d.charter);
+    const hq = d.hq_city ? `${d.hq_city}, ${d.hq_state || ""}`.trim() : "–";
+    return `
+    <tr ${clickable ? `onclick="location.hash='#/cu/${encodeURIComponent(d.charter)}'"` : ""}>
+      <td class="cu-cell"><div class="cu-name">${d.name}</div><div class="cu-meta">${d.chapter || ""}</div></td>
+      <td><div>${d.ceo || "–"}</div><div class="cu-meta">${d.ceo_email ? `<a href="mailto:${d.ceo_email}" onclick="event.stopPropagation()">${d.ceo_email}</a>` : ""}</div></td>
+      <td>${d.ceo_phone || "–"}</td>
+      <td>${hq}</td>
+      <td>${d.charter_type || "–"}</td>
+      <td>${d.member_status || "–"}</td>
+      <td>${d.branches ?? "–"}</td>
+    </tr>`;
+  }).join("");
+}
+
+/* ---------------- industry snapshot ---------------- */
+function cmpRow(label, pair, fmt) {
+  if (!pair || (pair.us == null && pair.ca == null)) return "";
+  return `<div class="cmp-row"><span class="cmp-label">${label}</span><span class="cmp-val">${fmt(pair.us)}</span><span class="cmp-val cmp-val-hi">${fmt(pair.ca)}</span></div>`;
+}
+const asPct = (v) => (v == null ? "–" : (v * 100).toFixed(2) + "%");
+const asInt = (v) => (v == null ? "–" : Math.round(v).toLocaleString());
+const asMoneyShort = (v) => fmtMoneyShort(v);
+const asMoney = (v) => (v == null ? "–" : "$" + Math.round(v).toLocaleString());
+
+function renderIndustry() {
+  const view = document.getElementById("view");
+  const I = DATA.industry;
+
+  view.innerHTML = `
+    <div class="section-title" style="margin-top:0;">Industry Snapshot</div>
+    <p class="glossary-intro">How the League's home states compare to the national credit union industry as a
+      whole, as of ${I.as_of}. This is industry-wide benchmark data (every US credit union, not just League
+      members), sourced from the League's roster file, separate from the quarterly engagement export.</p>
+
+    <div class="cmp-card">
+      <div class="cmp-head"><span></span><span>US Credit Unions</span><span class="cmp-val-hi">CA Credit Unions</span></div>
+      <div class="section-title" style="margin:14px 0 8px;font-size:10.5px;">Counts</div>
+      ${cmpRow("Total Credit Unions", I.counts.total_cus, asInt)}
+      ${cmpRow("Federally Chartered", I.counts.federal_chartered, asInt)}
+      ${cmpRow("State Chartered (NCUSIF Insured)", I.counts.state_chartered_ncusif, asInt)}
+      ${cmpRow("State Chartered (ASI Insured)", I.counts.state_chartered_asi, asInt)}
+      ${cmpRow("Total State Chartered", I.counts.total_state_chartered, asInt)}
+
+      <div class="section-title" style="margin:18px 0 8px;font-size:10.5px;">Scale</div>
+      ${cmpRow("Total Members", I.scale.total_members, asInt)}
+      ${cmpRow("Avg Members per CU", I.scale.avg_members_per_cu, asInt)}
+      ${cmpRow("Total Assets", I.scale.total_assets, asMoneyShort)}
+      ${cmpRow("Total Loans", I.scale.total_loans, asMoneyShort)}
+      ${cmpRow("Total Shares", I.scale.total_shares, asMoneyShort)}
+      ${cmpRow("Total Capital", I.scale.total_capital, asMoneyShort)}
+      ${cmpRow("Average Asset Size", I.scale.avg_asset_size, asMoneyShort)}
+
+      <div class="section-title" style="margin:18px 0 8px;font-size:10.5px;">Annualized Ratios (% of Average Assets)</div>
+      ${cmpRow("Interest Income", I.ratios_pct_of_avg_assets.interest_income, asPct)}
+      ${cmpRow("Interest Expense", I.ratios_pct_of_avg_assets.interest_expense, asPct)}
+      ${cmpRow("Net Interest Margin", I.ratios_pct_of_avg_assets.net_interest_margin, asPct)}
+      ${cmpRow("Loss Provisions", I.ratios_pct_of_avg_assets.loss_provisions, asPct)}
+      ${cmpRow("Operating Expenses", I.ratios_pct_of_avg_assets.operating_expenses, asPct)}
+      ${cmpRow("Non-Interest Income", I.ratios_pct_of_avg_assets.noninterest_income, asPct)}
+      ${cmpRow("ROA", I.ratios_pct_of_avg_assets.roa, asPct)}
+
+      <div class="section-title" style="margin:18px 0 8px;font-size:10.5px;">Growth &amp; Balance Sheet Ratios</div>
+      ${cmpRow("12-Month Loan Growth", I.growth_and_ratios.loan_growth_12mo, asPct)}
+      ${cmpRow("12-Month Share Growth", I.growth_and_ratios.share_growth_12mo, asPct)}
+      ${cmpRow("12-Month Capital Growth", I.growth_and_ratios.capital_growth_12mo, asPct)}
+      ${cmpRow("12-Month Asset Growth", I.growth_and_ratios.asset_growth_12mo, asPct)}
+      ${cmpRow("Loans / Shares", I.growth_and_ratios.loans_to_shares, asPct)}
+      ${cmpRow("Net Worth / Assets", I.growth_and_ratios.networth_to_assets, asPct)}
+      ${cmpRow("Capital / Assets", I.growth_and_ratios.capital_to_assets, asPct)}
+      ${cmpRow("Delinquency Ratio", I.growth_and_ratios.delinquency_ratio, asPct)}
+      ${cmpRow("Average Loan Balance", I.growth_and_ratios.avg_loan_balance, asMoney)}
+      ${cmpRow("Average Share Balance", I.growth_and_ratios.avg_share_balance, asMoney)}
+    </div>
+  `;
+}
+
+/* ---------------- organizational changes ---------------- */
+function renderChanges() {
+  const view = document.getElementById("view");
+  const C = DATA.changes;
+
+  const ceoRows = C.ceo_transitions.map((t) =>
+    `<div class="change-row"><span class="change-year">${t.year}</span><span>${t.cu}: <strong>${t.new_ceo}</strong> named CEO</span></div>`
+  ).join("") || `<div class="change-row muted">None on file</div>`;
+
+  const mergerRows = C.mergers.map((m) =>
+    `<div class="change-row"><span class="change-year">${m.period}</span><span><strong>${m.merged}</strong> merged into <strong>${m.surviving}</strong></span></div>`
+  ).join("") || `<div class="change-row muted">None on file</div>`;
+
+  const charterRows = C.charter_changes.map((cc) =>
+    `<div class="change-row"><span class="change-year">${cc.year}</span><span><strong>${cc.cu}</strong>: ${cc.from} to ${cc.to} charter${cc.assets ? ` (${fmtMoneyShort(cc.assets)} in assets at the time)` : ""}</span></div>`
+  ).join("") || `<div class="change-row muted">None on file</div>`;
+
+  const nameRows = C.name_changes.map((nc) =>
+    `<div class="change-row"><span class="change-year">${nc.year}</span><span><strong>${nc.old_name}</strong> renamed to <strong>${nc.new_name}</strong></span></div>`
+  ).join("") || `<div class="change-row muted">None on file</div>`;
+
+  view.innerHTML = `
+    <div class="section-title" style="margin-top:0;">Organizational Changes</div>
+    <p class="glossary-intro">A running log of CEO transitions, mergers, charter conversions, and name changes
+      across the League's membership. Source: the League's roster file.</p>
+
+    <div class="detail-card">
+      <div class="section-title" style="margin-top:0;">CEO Transitions</div>
+      <div class="change-list">${ceoRows}</div>
+    </div>
+    <div class="detail-card">
+      <div class="section-title" style="margin-top:0;">Mergers</div>
+      <div class="change-list">${mergerRows}</div>
+    </div>
+    <div class="detail-card">
+      <div class="section-title" style="margin-top:0;">Charter Changes</div>
+      <div class="change-list">${charterRows}</div>
+    </div>
+    <div class="detail-card">
+      <div class="section-title" style="margin-top:0;">Name Changes</div>
+      <div class="change-list">${nameRows}</div>
+    </div>
+  `;
 }
 
 /* ---------------- glossary ---------------- */

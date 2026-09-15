@@ -3,8 +3,9 @@
 A small internal website for browsing the League's quarterly member engagement
 data: a leaderboard, per-credit-union profile pages, an "Awards" page
 (league champion, most improved, category MVPs, asset-group champions, etc.),
-and a Glossary page explaining what every scored item means, built from the
-Q1 2026 finalized engagement dataset.
+a Glossary page explaining what every scored item means, and a Directory,
+Industry Snapshot, and Changes log built from the League's roster/reference
+workbook. Built from the Q1 2026 finalized engagement dataset.
 
 It's a static site: plain HTML/CSS/JS, no build step, no server-side code.
 Everything runs in the browser and reads from `engagement.json`.
@@ -18,10 +19,12 @@ it's a few clicks in your own account:
    `engagement-explorer`. It can be **public or private**; see the note on
    access below before deciding.
 2. Upload all the files in this folder (`index.html`, `styles.css`, `app.js`,
-   `engagement.json`, `build_data.py`, this `README.md`) to that repo,
-   either drag-and-drop in the GitHub web UI ("Add file → Upload files"), or
-   `git push` if you're comfortable with git. Keep them all at the top level
-   of the repo, no subfolders.
+   `engagement.json`, `build_data.py`, `build_directory.py`, this `README.md`)
+   to that repo, either drag-and-drop in the GitHub web UI ("Add file →
+   Upload files"), or `git push` if you're comfortable with git. Keep them
+   all at the top level of the repo, no subfolders. (The source workbooks,
+   `data.xlsx` and `Master_List.xlsx`, are inputs to the two build scripts,
+   not part of the site itself — don't upload those.)
 3. In the repo, go to **Settings → Pages**. Under "Build and deployment,"
    set Source to **Deploy from a branch**, branch `main`, folder `/ (root)`.
    Save.
@@ -81,6 +84,59 @@ Then re-upload the updated `engagement.json` to the GitHub repo (or
 `git push` it). GitHub Pages picks up the change automatically, usually
 within a minute.
 
+## Updating the Directory / Industry / Changes data
+
+The Directory, Industry Snapshot, and Changes pages, plus the "Organization
+& Contact" panel on each CU's profile, come from a second workbook (the
+"Master List") rather than the quarterly engagement export. That's on
+purpose, this roster/reference data changes on its own schedule (a new CEO,
+a merger, an updated industry benchmark), not every quarter, so it has its
+own build script:
+
+```
+python3 build_directory.py /path/to/Master_List.xlsx engagement.json
+```
+
+Run this any time the roster file changes. Order matters if you're also
+refreshing the quarterly data: run `build_data.py` first (it replaces
+`engagement.json` wholesale), then `build_directory.py` (it loads that same
+file and adds to it). If only the roster changed, just re-run
+`build_directory.py` on its own, it'll refresh the roster-derived data in
+place without touching the engagement scores.
+
+The script expects the same sheet names and layout as the current Master
+List (`Credit Unions + CEO List (All 3`, `League Membership Status (Dues)`,
+`CEO Transitions`, `Mergers`, `Charter Changes`, `Name Changes`,
+`Financial Snapshot`). If a future version of the workbook renames a sheet
+or reorders its columns, open `build_directory.py` and adjust the column
+indices near the top to match.
+
+**Two things left out on purpose:**
+
+- **The "Risk Report" tab isn't pulled in.** It's a per-CU composite risk
+  score and trend over the last six quarters, more like supervisory data
+  than something to publish, even to a soft-gated internal site. If you
+  want this on the site anyway, say so and I'll add it, but I'd hold off
+  by default.
+- **Branch-level addresses (the "HQ + Branch Locations" tab, ~1,745 rows)
+  aren't included either.** That sheet only has a credit union name to key
+  off of, no charter number, and a few names are similar enough that
+  matching them up automatically risked attaching a branch to the wrong
+  CU. It's a lower-value add than the other sheets, so I left it out
+  rather than risk a wrong address showing up on someone's profile. Happy
+  to revisit if it'd be useful and you can confirm a few of the ambiguous
+  matches by hand.
+
+One data-quality item worth fixing at the source, not on the site: four
+CUs' charter numbers in the quarterly engagement export don't match their
+real charter number in the Master List (California CU, Credit Union of
+Southern California FCU, Orange County's FCU, and Valley First CU all carry
+oddly sequential numbers like 24980-24986 in the engagement export instead
+of their actual charter numbers). The site works around this automatically
+by matching those four by name instead, so nothing is broken, but whoever
+maintains the engagement export might want to correct those charter numbers
+next quarter.
+
 ## What's on each page
 
 - **Leaderboard** (`#/`): every credit union, sortable by any column,
@@ -100,6 +156,22 @@ within a minute.
   guess based on how the item lines up with older documentation, or not
   documented anywhere we could find. That last group is worth a look,
   it's a real list of items nobody has ever written a definition for.
+- **Directory** (`#/directory`): every credit union in the Master List
+  (319 entries, a superset of the 259 in the engagement data), with CEO,
+  phone, HQ, charter type, member status, and branch count. Sortable and
+  searchable like the leaderboard; rows for CUs also in the engagement
+  data link through to their full profile.
+- **Industry Snapshot** (`#/industry`): US-wide vs. California credit union
+  industry benchmarks (counts, scale, and key ratios) as of Q4 2025, so
+  the league's own numbers have something external to compare against.
+- **Changes** (`#/changes`): a running log pulled from the Master List, CEO
+  transitions, mergers, charter conversions, and name changes, newest
+  first.
+- **CU profile "Organization & Contact" panel**: CEO email/phone, HQ
+  address, county, congressional district, charter type, chapter, member
+  status, branch count, CDFI and low-income designations, and a "Formerly
+  ___" badge for CUs that have changed their name. Populated from the
+  Master List for any CU it could be matched to.
 
 A couple of credit unions show a category total higher than that category's
 usual point cap (flagged in gold on their profile and on the Awards page).

@@ -210,11 +210,38 @@ footer.site{margin-top:40px;padding-top:14px;border-top:1px solid var(--grid);fo
 .src-badge.src-guess{background:var(--warn-bg);color:var(--warn-tx);}
 .src-badge.src-none{background:var(--crit-bg);color:var(--crit-tx);}
 
+/* ---------- organization & contact panel, source tag, former-name badge ---------- */
+.source-tag{float:right;font-size:9px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink-muted);}
+.former-name-badge{display:inline-block;margin-top:6px;font-size:10.5px;font-style:italic;color:var(--ink-muted);}
+
+/* ---------- directory ---------- */
+/* (reuses .filters, .board, .cu-cell, .cu-meta from the leaderboard) */
+
+/* ---------- industry snapshot ---------- */
+.cmp-card{background:var(--surface);border:1px solid var(--grid);border-radius:12px;padding:22px 26px;box-shadow:var(--shadow-sm);}
+.cmp-head{display:grid;grid-template-columns:1fr 140px 140px;gap:10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--ink-muted);font-weight:700;padding-bottom:8px;border-bottom:2px solid var(--grid);}
+.cmp-row{display:grid;grid-template-columns:1fr 140px 140px;gap:10px;padding:7px 0;border-bottom:1px solid var(--grid);font-size:12.5px;align-items:center;}
+.cmp-row:last-child{border-bottom:none;}
+.cmp-label{color:var(--ink-sec);}
+.cmp-val{font-weight:700;font-variant-numeric:tabular-nums;text-align:right;}
+.cmp-val-hi{color:var(--navy);}
+
+/* ---------- organizational changes ---------- */
+.change-list{display:flex;flex-direction:column;gap:2px;}
+.change-row{display:flex;gap:14px;align-items:baseline;padding:8px 4px;border-bottom:1px solid var(--grid);font-size:12.5px;}
+.change-row:last-child{border-bottom:none;}
+.change-row.muted{color:var(--ink-muted);font-style:italic;}
+.change-year{flex:none;width:76px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums;}
+
 @media (max-width:820px){
   .statstrip{grid-template-columns:repeat(2,1fr);}
   .award-grid,.mvp-grid{grid-template-columns:1fr 1fr;}
   .checklist-grid{grid-template-columns:1fr;}
   table.board{font-size:11px;}
+  .cmp-head,.cmp-row{grid-template-columns:1fr 90px 90px;font-size:11px;}
+  .change-row{flex-direction:column;gap:2px;}
+  .change-year{width:auto;}
 }
 
 /* ---------- print / save as PDF ---------- */
@@ -232,12 +259,12 @@ footer.site{margin-top:40px;padding-top:14px;border-top:1px solid var(--grid);fo
   header.topbar, .searchbox, .filters, .back-link, .print-fab, #gate{display:none !important;}
   #app{max-width:100%;margin:0;padding:0;}
 
-  .detail-card, .award-card, .mvp-card, .glossary-cat, .stat-tile, table.board{
+  .detail-card, .award-card, .mvp-card, .glossary-cat, .stat-tile, table.board, .cmp-card{
     box-shadow:none !important;
   }
   .detail-card{border:1px solid #ccc;break-inside:avoid;page-break-inside:avoid;margin-bottom:14px;}
   .award-card, .mvp-card, .glossary-cat{break-inside:avoid;page-break-inside:avoid;}
-  .meter-row, .cat-block{break-inside:avoid;page-break-inside:avoid;}
+  .meter-row, .cat-block, .change-row{break-inside:avoid;page-break-inside:avoid;}
 
   table.board thead{display:table-header-group;}
   table.board tr{break-inside:avoid;page-break-inside:avoid;}
