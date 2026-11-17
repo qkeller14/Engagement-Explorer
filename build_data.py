@@ -145,6 +145,11 @@ for g, items in by_group.items():
 
 league = {
     "quarter": "Q1 2026",
+    # Shown on the site as "Last updated". Stamped automatically with the date
+    # this script runs, so it reflects when the site's data was last refreshed
+    # (not the quarter the data covers, which is "quarter" above).
+    "last_updated": datetime.date.today().isoformat(),
+    "source_file": os.path.basename(IN_PATH),
     "total_cus": overall_n,
     "total_possible": TOTAL_POSSIBLE,
     "tier_counts": tier_counts,

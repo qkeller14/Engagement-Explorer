@@ -84,6 +84,19 @@ Then re-upload the updated `engagement.json` to the GitHub repo (or
 `git push` it). GitHub Pages picks up the change automatically, usually
 within a minute.
 
+**The "Last updated" date is automatic.** `build_data.py` stamps the date it
+runs (and the source file's name) into `engagement.json`, and the site shows
+it as a pill in the header, plus a line in the footer, which also appears on
+printed/PDF pages. There's nothing to edit by hand. Note that this is the
+date the site's data was refreshed, not the quarter the data covers (that's
+the "Q1 2026 data" label next to it). `build_directory.py` stamps its own
+"roster last updated" date, shown on the Directory page, since the roster
+refreshes on a different schedule.
+
+Heads up: `build_data.py` replaces `engagement.json` wholesale, which wipes
+out the Directory/Industry/Changes data. Always re-run `build_directory.py`
+right after it (see the next section).
+
 ## Updating the Directory / Industry / Changes data
 
 The Directory, Industry Snapshot, and Changes pages, plus the "Organization

@@ -1,4 +1,4 @@
-import openpyxl, json, re, sys, os
+import openpyxl, json, re, sys, os, datetime
 
 # Usage: python3 build_directory.py [path/to/Master_List.xlsx] [path/to/engagement.json]
 #
@@ -272,6 +272,9 @@ for cu in data["cus"]:
 data["directory"] = directory
 data["changes"] = changes
 data["industry"] = industry
+# Roster data refreshes on its own schedule, so it gets its own date, shown on
+# the Directory page. The site-wide "Last updated" comes from build_data.py.
+data["roster_updated"] = datetime.date.today().isoformat()
 
 with open(OUT_PATH, "w") as f:
     json.dump(data, f, default=str)

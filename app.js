@@ -104,12 +104,45 @@ fetch("engagement.json")
   .then((r) => r.json())
   .then((d) => {
     DATA = d;
+    renderUpdatedStamp();
     buildTermLookup();
     window.addEventListener("hashchange", route);
     route();
     setupSearch();
     document.getElementById("print-fab").addEventListener("click", () => window.print());
   });
+
+/* ---------------- "last updated" stamp ---------------- */
+// Dates are stored as "YYYY-MM-DD". Build them from parts rather than passing
+// the string to new Date(), which reads it as UTC midnight and would show the
+// previous day for anyone in a US time zone.
+function parseISODate(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+function fmtDate(s, style) {
+  const d = parseISODate(s);
+  if (!d) return null;
+  return d.toLocaleDateString("en-US", { month: style === "short" ? "short" : "long", day: "numeric", year: "numeric" });
+}
+
+function renderUpdatedStamp() {
+  const L = DATA.league;
+  const q = document.getElementById("brand-quarter");
+  if (q && L.quarter) q.textContent = `${L.quarter} data`;
+
+  const longDate = fmtDate(L.last_updated, "long");
+  const pill = document.getElementById("updated-pill");
+  if (pill && longDate) {
+    pill.textContent = `Updated ${fmtDate(L.last_updated, "short")}`;
+    pill.title = `Data last refreshed ${longDate}` + (L.source_file ? ` from ${L.source_file}` : "");
+    pill.hidden = false;
+  }
+  const foot = document.getElementById("footer-source");
+  if (foot) {
+    foot.textContent = `${L.quarter || ""} engagement data`.trim() + (longDate ? ` · last updated ${longDate}` : "");
+  }
+}
 
 function currentRoute() {
   const h = location.hash.replace(/^#/, "") || "/";
@@ -460,8 +493,9 @@ function renderDirectory() {
   view.innerHTML = `
     <div class="section-title" style="margin-top:0;">Credit Union Directory</div>
     <p class="glossary-intro">CEO contact, HQ, and charter info for every credit union in the League's roster,
-      not just the ones with Q1 2026 engagement data. Source: the League's roster file, kept separately from
-      the quarterly engagement export. Click a row to open that CU's full profile, where one exists.</p>
+      not just the ones with ${DATA.league.quarter || "current"} engagement data. Source: the League's roster file, kept separately from
+      the quarterly engagement export${DATA.roster_updated ? ` (roster last updated ${fmtDate(DATA.roster_updated, "long")})` : ""}.
+      Click a row to open that CU's full profile, where one exists.</p>
 
     <div class="filters">
       <input type="text" id="dir-search" placeholder="Search by name or CEO…" value="${dirFilters.q}"/>
