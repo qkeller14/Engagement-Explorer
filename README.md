@@ -181,17 +181,14 @@ attendees by credit union HQ city, headline numbers, filters (search, role
 group, location, registration type), a sortable attendee table, and an
 "Export filtered CSV" button for follow-up lists.
 
-**No attendee data is stored on the website.** Attendee names and emails
-are personal contact details, and this site is reachable by anyone with
-the link, so `reach.html` ships empty: whoever opens it chooses the attendee
-spreadsheet from their computer and it's read entirely in their browser.
-Nothing is uploaded or saved. A new or updated attendee export works without
-any rebuild, as long as it has columns like First Name, Last Name, Title,
-Credit Union, Email, Work City, Work State.
+**The attendee list is built into `reach.html`**, so it shows up as soon as
+someone opens the tab. That includes names, titles, and emails, and like the
+rest of the site the file is reachable by anyone who has the link (the
+passphrase is only a soft gate). Take `reach.html` down from the repo once the
+list is no longer needed.
 
-A separate copy with the current attendee list built in
-(`REACH_2026_Dashboard.html`) is for sharing inside the League only, e.g. on
-SharePoint or Teams. Don't upload that one to GitHub.
+To update it with a newer attendee export, send the file to Claude to rebuild
+`reach.html` (it bundles the dashboard code, which isn't kept in this repo).
 
 How the dashboard prepares the data:
 
