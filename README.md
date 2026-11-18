@@ -24,7 +24,7 @@ it's a few clicks in your own account:
    Upload files"), or `git push` if you're comfortable with git. Keep them
    all at the top level of the repo, no subfolders. (The source workbooks,
    `data.xlsx` and `Master_List.xlsx`, are inputs to the two build scripts,
-   not part of the site itself — don't upload those.)
+   not part of the site itself, so don't upload those.)
 3. In the repo, go to **Settings → Pages**. Under "Build and deployment,"
    set Source to **Deploy from a branch**, branch `main`, folder `/ (root)`.
    Save.
@@ -58,108 +58,134 @@ Before sharing the link with anyone, change the passphrase in `app.js`
 (the `PASSPHRASE` constant near the top of the file) to something not in
 this README.
 
-## Updating it next quarter
+## Updating the data
 
 The site reads one file: `engagement.json`, sitting next to `index.html`.
-To refresh it from a new quarterly export, run this with both files in the
-same folder:
+Rebuilding it takes two commands, run in this folder (requires
+`pip install openpyxl`):
 
 ```
-python3 build_data.py /path/to/next_quarter_export.xlsx engagement.json
+python3 build_data.py "path/to/Member Engagement workbook.xlsx" engagement.json
+python3 build_directory.py path/to/Master_List.xlsx engagement.json
 ```
 
-This assumes the new export uses the same "Worksheet" tab layout as the
-Q1 2026 file (same column order, header row 3, data starting row 6). If a
-future export reorders columns or renames the tab, open `build_data.py` and
-adjust the column indices at the top (the `CATS` list and the fixed indices
-for charter/state/assets/CEO/etc.) to match. Requires `pip install openpyxl`.
+If you don't have a newer Master List, use this second command instead. It
+re-uses the roster data from the copy of `engagement.json` that's currently
+published (keep a copy of it before running `build_data.py`):
 
-The glossary (term definitions on the Glossary page and the hover/click
-tooltips throughout the site) is hand-curated inside `build_data.py`. Look
-for the `CATEGORIES` list near the bottom of the file. If a future quarter
-renames or adds a scored item, add or update its entry there so the glossary
-stays in sync; it won't pick up new items automatically.
+```
+python3 build_directory.py --carry-from old_engagement.json engagement.json
+```
 
-Then re-upload the updated `engagement.json` to the GitHub repo (or
-`git push` it). GitHub Pages picks up the change automatically, usually
-within a minute.
+Order matters: `build_data.py` rewrites `engagement.json` from scratch, which
+removes the Directory/Industry/Changes data, and `build_directory.py` adds it
+back. Then upload the new `engagement.json` to the GitHub repo.
 
-**The "Last updated" date is automatic.** `build_data.py` stamps the date it
-runs (and the source file's name) into `engagement.json`, and the site shows
-it as a pill in the header, plus a line in the footer, which also appears on
-printed/PDF pages. There's nothing to edit by hand. Note that this is the
-date the site's data was refreshed, not the quarter the data covers (that's
-the "Q1 2026 data" label next to it). `build_directory.py` stamps its own
-"roster last updated" date, shown on the Directory page, since the roster
-refreshes on a different schedule.
+### Which tab of the engagement workbook is used
 
-Heads up: `build_data.py` replaces `engagement.json` wholesale, which wipes
-out the Directory/Industry/Changes data. Always re-run `build_directory.py`
-right after it (see the next section).
+- By default `build_data.py` reads the **"Source Data"** tab. That's the
+  League's running source data: the newest financials (assets, members,
+  full-time and part-time staff, asset group) and engagement activity, with
+  a "Last Updated" row. It compares those scores against the **"Worksheet"**
+  tab in the same file, which holds the last finalized quarter.
+- The period label comes from the assets column header (e.g. "2ndQ 2026
+  Assets" becomes "Q2 2026"). Data from the "Source Data" tab is labeled
+  **preliminary** until that quarter is finalized; add `--final` to drop
+  the label.
+- To build from a finalized "Worksheet" tab instead: `--sheet Worksheet`.
+  To compare against a tab in a different file:
+  `--compare-file older.xlsx --compare-sheet Worksheet`.
+- Columns are found by their header names, so the "Source Data" and
+  "Worksheet" layouts (which don't line up column-for-column) both work.
+  If a header gets renamed, the script stops and says which column it
+  couldn't find.
 
-## Updating the Directory / Industry / Changes data
+### How scores are calculated
+
+- Each category's points come from the workbook's own total column for that
+  category; the overall score is the sum of the five (28 possible).
+- Which checklist items count is read from the workbook's total formulas.
+  In Advocacy, the formula counts eight items: the three event columns
+  (Government Relations Rally, Government Affairs Conference, Hike the Hill)
+  count through "GAC & GRR & HTH", and "Advocacy Workships" is tracked but
+  not counted. The site shows those four items marked "not counted" so each
+  category's list adds up to its score.
+- If a total cell was typed over (it doesn't match its items), the site
+  shows the workbook's number and notes the difference on that profile.
+  The build prints every such case. As of this build there's one: Navy FCU's
+  Advocacy total is 0 although two scored items are marked.
+- Rows with no assets reported or no asset group are left off (they can't
+  be placed in a peer group). The build prints which ones.
+
+### The "Last updated" date
+
+The badge in the header ("Updated Sep 20, 2026") shows when the data itself
+was last updated, taken from the "Last Updated" row of the "Source Data" tab
+(the newest date in that row). Hover over it to see the source file and the
+date the site was last rebuilt. The footer shows both dates too, and it
+appears on printed/PDF pages. Nothing to edit by hand. If the tab has no
+"Last Updated" row, the date the site was rebuilt is shown instead.
+
+### Glossary
+
+The glossary (Glossary page and the hover tooltips) is hand-curated inside
+`build_data.py`, in the `CATEGORIES` list near the bottom. If an item is
+renamed or added, update its entry there. Terms match with or without a
+leading year, so the "REACH" entry also covers "2026 REACH".
+
+## Directory / Industry / Changes data (the Master List)
 
 The Directory, Industry Snapshot, and Changes pages, plus the "Organization
-& Contact" panel on each CU's profile, come from a second workbook (the
-"Master List") rather than the quarterly engagement export. That's on
-purpose, this roster/reference data changes on its own schedule (a new CEO,
-a merger, an updated industry benchmark), not every quarter, so it has its
-own build script:
+& Contact" panel on each CU's profile, come from the League's roster
+workbook (the "Master List"), which updates on its own schedule.
 
-```
-python3 build_directory.py /path/to/Master_List.xlsx engagement.json
-```
-
-Run this any time the roster file changes. Order matters if you're also
-refreshing the quarterly data: run `build_data.py` first (it replaces
-`engagement.json` wholesale), then `build_directory.py` (it loads that same
-file and adds to it). If only the roster changed, just re-run
-`build_directory.py` on its own, it'll refresh the roster-derived data in
-place without touching the engagement scores.
-
-The script expects the same sheet names and layout as the current Master
-List (`Credit Unions + CEO List (All 3`, `League Membership Status (Dues)`,
+`build_directory.py` expects the current Master List's sheet names and
+layout (`Credit Unions + CEO List (All 3`, `League Membership Status (Dues)`,
 `CEO Transitions`, `Mergers`, `Charter Changes`, `Name Changes`,
-`Financial Snapshot`). If a future version of the workbook renames a sheet
-or reorders its columns, open `build_directory.py` and adjust the column
-indices near the top to match.
+`Financial Snapshot`).
+
+**When the two sources disagree**, the script prints every case, and:
+
+- The engagement workbook wins for anything it has: name, CEO, member
+  status, financials. The roster fills in contact info, HQ, county,
+  district, charter type, chapter, branches, and CDFI/low-income flags.
+- Exception for CEOs: if the roster's dated **CEO Transitions** log names a
+  different CEO than the engagement workbook, the log wins, and the profile
+  notes what the workbook said. (The workbook's CEO column has lagged
+  behind documented transitions.)
+- If the roster's CEO is a different person than the CEO shown on the site,
+  the roster's email and phone are labeled "on file for [that person]"
+  rather than presented as the current CEO's contact info.
+- Converted charters: several CUs converted from state to federal charters
+  (they're in the Charter Changes log) and appear in the engagement
+  workbook under their new charter numbers (e.g. 24980-24993), while the
+  roster still lists the old ones. They're matched by name, and the
+  Directory links them to the right profile. Updating those charter numbers
+  in the roster would remove the need for the name match.
 
 **Two things left out on purpose:**
 
 - **The "Risk Report" tab isn't pulled in.** It's a per-CU composite risk
   score and trend over the last six quarters, more like supervisory data
-  than something to publish, even to a soft-gated internal site. If you
-  want this on the site anyway, say so and I'll add it, but I'd hold off
-  by default.
+  than something to publish, even to a soft-gated internal site.
 - **Branch-level addresses (the "HQ + Branch Locations" tab, ~1,745 rows)
-  aren't included either.** That sheet only has a credit union name to key
-  off of, no charter number, and a few names are similar enough that
-  matching them up automatically risked attaching a branch to the wrong
-  CU. It's a lower-value add than the other sheets, so I left it out
-  rather than risk a wrong address showing up on someone's profile. Happy
-  to revisit if it'd be useful and you can confirm a few of the ambiguous
-  matches by hand.
-
-One data-quality item worth fixing at the source, not on the site: four
-CUs' charter numbers in the quarterly engagement export don't match their
-real charter number in the Master List (California CU, Credit Union of
-Southern California FCU, Orange County's FCU, and Valley First CU all carry
-oddly sequential numbers like 24980-24986 in the engagement export instead
-of their actual charter numbers). The site works around this automatically
-by matching those four by name instead, so nothing is broken, but whoever
-maintains the engagement export might want to correct those charter numbers
-next quarter.
+  aren't included.** That sheet only has a credit union name to key off of,
+  no charter number, and some names are similar enough that automatic
+  matching risked attaching a branch to the wrong CU.
 
 ## What's on each page
 
 - **Leaderboard** (`#/`): every credit union, sortable by any column,
-  filterable by asset group and state, with a quick search box. Click a row
-  to open that CU's profile.
+  filterable by asset group, state, and member status (non-members and
+  associate members are tracked too, and carry a badge), with a quick
+  search box and a "vs Q1" change column. Click a row to open that CU's
+  profile.
 - **Credit union profile** (`#/cu/<charter>`): the same category breakdown,
   peer comparison, and activity detail used in the report-card mockups,
-  now for every CU in the dataset. Any scored item with a known definition
-  is underlined; hover for a quick tooltip, or click to jump straight to
-  its full entry on the Glossary page.
+  now for every CU in the dataset, with assets, members, full-time and
+  part-time staff as of the latest quarter. Any item with a known
+  definition is underlined; hover for a quick tooltip, or click to jump
+  straight to its full entry on the Glossary page.
 - **Awards** (`#/awards`): league champion, most improved, steadiest,
   perfect-score club, asset-group champions, and a "category MVP" for each
   of the five engagement categories.
@@ -170,7 +196,7 @@ next quarter.
   documented anywhere we could find. That last group is worth a look,
   it's a real list of items nobody has ever written a definition for.
 - **Directory** (`#/directory`): every credit union in the Master List
-  (319 entries, a superset of the 259 in the engagement data), with CEO,
+  (319 entries, a superset of the 260 in the engagement data), with CEO,
   phone, HQ, charter type, member status, and branch count. Sortable and
   searchable like the leaderboard; rows for CUs also in the engagement
   data link through to their full profile.
@@ -186,7 +212,7 @@ next quarter.
   ___" badge for CUs that have changed their name. Populated from the
   Master List for any CU it could be matched to.
 
-A couple of credit unions show a category total higher than that category's
+Some credit unions can show a category total higher than that category's
 usual point cap (flagged in gold on their profile and on the Awards page).
 That's not a bug in the site, it's because a few items in the source data
 (like GAC & GRR & HTH attendance) are stored as running counts rather than
@@ -201,11 +227,5 @@ Elections have been pulled out of every CU's checklist, meters, and the
 Glossary, and every score, tier, rank, and peer average on the site is
 recalculated out of 28 points instead of 31.
 
-One tradeoff worth knowing about: the "vs Q4 2025" figure on each profile
-and the leaderboard still comes from the quarterly export as-is. That
-export doesn't break Q4 down by category, so there's no way to subtract
-Q4's Leadership points back out, meaning that comparison is now measuring
-this quarter's 5-category total against last quarter's 6-category total.
-It's the best signal available, but it's not a perfectly apples-to-apples
-comparison anymore. Flag that if it comes up, and let me know if you'd
-rather hide that column until a like-for-like Q4 number is available.
+The "vs Q1" comparison is like-for-like: both quarters are scored the same
+way, on the five remaining categories out of 28 points.

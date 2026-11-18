@@ -27,9 +27,9 @@ const PASSPHRASE = "league2026"; // change me before sharing the link further
 
 /* ---------------- state ---------------- */
 let DATA = null;
-let sortKey = "q1_total";
+let sortKey = "total";
 let sortDir = "desc";
-let filters = { q: "", group: "all", state: "all" };
+let filters = { q: "", group: "all", state: "all", status: "all" };
 
 const fmtMoney = (v) => (v == null ? "–" : "$" + Math.round(v).toLocaleString());
 const fmtMoneyShort = (v) => {
@@ -42,6 +42,25 @@ const fmtNum = (v) => (v == null ? "–" : v.toLocaleString());
 
 function tierLabel(t) {
   return t === "high" ? "Highly Engaged" : t === "mod" ? "Moderately Engaged" : "Low Engagement";
+}
+
+/* membership badge: shown for anyone who isn't a full member, so non-members
+   and associate members are easy to spot (they're tracked, but not members) */
+function memberPill(c) {
+  if (!c.member_status || c.member_status === "Member") return "";
+  const cls = c.member_status === "Non-Member" ? "nonmember" : "associate";
+  return `<span class="member-pill ${cls}">${c.member_status}</span>`;
+}
+
+/* period labels, e.g. "Q2 2026 (preliminary)" and "Q1 2026" */
+function periodLabel() {
+  const L = DATA.league;
+  return (L.quarter || "") + (L.preliminary ? " (preliminary)" : "");
+}
+function compareLabel(short) {
+  const p = DATA.league.compare_label;
+  if (!p) return null;
+  return short ? p.split(" ")[0] : p;
 }
 
 /* one accent color per engagement category, used consistently across the
@@ -69,15 +88,20 @@ function slugify(s) {
 /* term key = "<category key>::<slugified term>" so the same label under two
    categories (e.g. "Online Educational Content") resolves to two different entries */
 let TERM_LOOKUP = {};
+let TERM_ALIAS = {}; // same keys with any leading year removed, so "2026 REACH" finds "REACH"
+const stripYear = (s) => String(s).replace(/^\s*(19|20)\d\d\s+/, "");
 function buildTermLookup() {
   TERM_LOOKUP = {};
+  TERM_ALIAS = {};
   (DATA.glossary || []).forEach((cat) => {
     TERM_LOOKUP[cat.key + "::" + slugify(cat.label)] = {
       term: cat.label, definition: cat.description, source: "category",
       categoryKey: cat.key, categoryLabel: cat.label,
     };
     cat.terms.forEach((t) => {
-      TERM_LOOKUP[cat.key + "::" + slugify(t.term)] = { ...t, categoryKey: cat.key, categoryLabel: cat.label };
+      const key = cat.key + "::" + slugify(t.term);
+      TERM_LOOKUP[key] = { ...t, categoryKey: cat.key, categoryLabel: cat.label };
+      TERM_ALIAS[cat.key + "::" + slugify(stripYear(t.term))] = key;
     });
   });
 }
@@ -85,7 +109,8 @@ function buildTermLookup() {
 /* Wraps a category/item label as a hoverable, clickable link into the Glossary
    tab when a matching definition exists; otherwise returns the plain label. */
 function termSpan(categoryKey, label) {
-  const key = categoryKey + "::" + slugify(label);
+  let key = categoryKey + "::" + slugify(label);
+  if (!TERM_LOOKUP[key]) key = TERM_ALIAS[categoryKey + "::" + slugify(stripYear(label))] || key;
   const entry = TERM_LOOKUP[key];
   if (!entry) return `<span>${label}</span>`;
   const title = entry.source === "undocumented" ? "Not yet documented. Click for details." : entry.definition.replace(/"/g, "&quot;");
@@ -126,21 +151,30 @@ function fmtDate(s, style) {
   return d.toLocaleDateString("en-US", { month: style === "short" ? "short" : "long", day: "numeric", year: "numeric" });
 }
 
+// "Last updated" = when the data itself was last updated (the workbook's own
+// "Last Updated" row, L.as_of). If the source tab has no such row, it falls back
+// to the date the site's data was rebuilt (L.last_updated).
 function renderUpdatedStamp() {
   const L = DATA.league;
   const q = document.getElementById("brand-quarter");
-  if (q && L.quarter) q.textContent = `${L.quarter} data`;
+  if (q && L.quarter) q.textContent = `${periodLabel()} data`;
 
-  const longDate = fmtDate(L.last_updated, "long");
+  const dataDate = L.as_of || L.last_updated;
   const pill = document.getElementById("updated-pill");
-  if (pill && longDate) {
-    pill.textContent = `Updated ${fmtDate(L.last_updated, "short")}`;
-    pill.title = `Data last refreshed ${longDate}` + (L.source_file ? ` from ${L.source_file}` : "");
+  if (pill && dataDate) {
+    pill.textContent = `Updated ${fmtDate(dataDate, "short")}`;
+    const parts = [`Data last updated ${fmtDate(dataDate, "long")}`];
+    if (L.source_file) parts.push(`Source: ${L.source_file}${L.source_sheet ? ` ("${L.source_sheet}" tab)` : ""}`);
+    if (L.last_updated && L.last_updated !== dataDate) parts.push(`Site refreshed ${fmtDate(L.last_updated, "long")}`);
+    pill.title = parts.join("\n");
     pill.hidden = false;
   }
   const foot = document.getElementById("footer-source");
   if (foot) {
-    foot.textContent = `${L.quarter || ""} engagement data`.trim() + (longDate ? ` · last updated ${longDate}` : "");
+    const bits = [`${periodLabel()} engagement data`];
+    if (dataDate) bits.push(`data last updated ${fmtDate(dataDate, "long")}`);
+    if (L.last_updated && L.last_updated !== dataDate) bits.push(`site refreshed ${fmtDate(L.last_updated, "long")}`);
+    foot.textContent = bits.join(" · ");
   }
 }
 
@@ -196,8 +230,11 @@ function renderLeaderboard() {
 
   const groupOptions = Object.keys(L.asset_groups).sort((a, b) => a - b)
     .map((g) => `<option value="${g}">Group ${g} (${L.asset_groups[g].n} CUs)</option>`).join("");
-  const stateOptions = [...new Set(DATA.cus.map((c) => c.state))].sort()
+  const stateOptions = [...new Set(DATA.cus.map((c) => c.state).filter(Boolean))].sort()
     .map((s) => `<option value="${s}">${s}</option>`).join("");
+  const statusOptions = [...new Set(DATA.cus.map((c) => c.member_status).filter(Boolean))].sort()
+    .map((s) => `<option value="${s}">${s}</option>`).join("");
+  const cmp = compareLabel(true);
 
   view.innerHTML = `
     <div class="statstrip">
@@ -212,6 +249,7 @@ function renderLeaderboard() {
       <input type="text" id="tbl-search" placeholder="Search credit union…" value="${filters.q}"/>
       <select id="filter-group"><option value="all">All asset groups</option>${groupOptions}</select>
       <select id="filter-state"><option value="all">All states</option>${stateOptions}</select>
+      ${statusOptions ? `<select id="filter-status"><option value="all">All member statuses</option>${statusOptions}</select>` : ""}
       <span class="count" id="result-count"></span>
     </div>
 
@@ -222,10 +260,10 @@ function renderLeaderboard() {
           <th data-key="cu">Credit Union</th>
           <th data-key="asset_group">Asset Group</th>
           <th data-key="assets">Assets</th>
-          <th data-key="q1_total">Score</th>
+          <th data-key="total">Score</th>
           <th data-key="tier">Tier</th>
           <th data-key="peer_avg">Peer Avg</th>
-          <th data-key="variance">vs Q4</th>
+          ${cmp ? `<th data-key="variance" title="Change in score since ${compareLabel()}">vs ${cmp}</th>` : ""}
         </tr>
       </thead>
       <tbody id="board-body"></tbody>
@@ -235,6 +273,13 @@ function renderLeaderboard() {
   document.getElementById("tbl-search").addEventListener("input", (e) => { filters.q = e.target.value; renderBody(); });
   document.getElementById("filter-group").addEventListener("change", (e) => { filters.group = e.target.value; renderBody(); });
   document.getElementById("filter-state").addEventListener("change", (e) => { filters.state = e.target.value; renderBody(); });
+  const statusSel = document.getElementById("filter-status");
+  if (statusSel) {
+    statusSel.value = filters.status;
+    statusSel.addEventListener("change", (e) => { filters.status = e.target.value; renderBody(); });
+  }
+  document.getElementById("filter-group").value = filters.group;
+  document.getElementById("filter-state").value = filters.state;
   document.querySelectorAll("th[data-key]").forEach((th) => {
     th.addEventListener("click", () => {
       const k = th.getAttribute("data-key");
@@ -254,6 +299,7 @@ function renderBody() {
     if (filters.q && !c.cu.toLowerCase().includes(filters.q.toLowerCase())) return false;
     if (filters.group !== "all" && String(c.asset_group) !== filters.group) return false;
     if (filters.state !== "all" && c.state !== filters.state) return false;
+    if (filters.status !== "all" && c.member_status !== filters.status) return false;
     return true;
   });
   rows.sort((a, b) => {
@@ -271,13 +317,13 @@ function renderBody() {
   document.getElementById("board-body").innerHTML = rows.map((c) => `
     <tr onclick="location.hash='#/cu/${encodeURIComponent(c.charter)}'">
       <td class="rank-cell">#${c.overall_rank}</td>
-      <td class="cu-cell"><div class="cu-name">${c.cu}</div><div class="cu-meta">${c.state} · CEO ${c.ceo || "–"}</div></td>
+      <td class="cu-cell"><div class="cu-name">${c.cu}${memberPill(c)}</div><div class="cu-meta">${c.state || "–"} · CEO ${c.ceo || "–"}</div></td>
       <td>Group ${c.asset_group}</td>
       <td>${fmtMoneyShort(c.assets)}</td>
-      <td class="score-cell">${c.q1_total}<span style="color:var(--ink-muted);font-weight:500;">/${DATA.league.total_possible}</span></td>
+      <td class="score-cell">${c.total}<span style="color:var(--ink-muted);font-weight:500;">/${DATA.league.total_possible}</span></td>
       <td><span class="tier-pill ${c.tier}">${tierLabel(c.tier)}</span></td>
       <td>${c.peer_avg ?? "–"}</td>
-      <td>${deltaHtml(c.variance)}</td>
+      ${DATA.league.compare_label ? `<td>${deltaHtml(c.variance)}</td>` : ""}
     </tr>
   `).join("");
 }
@@ -304,10 +350,13 @@ function renderDetail(charter) {
 
   const checklist = c.categories.map((cat) => {
     const cc = catColor(cat.key);
-    const rows = cat.items.map((it) =>
-      `<div class="item-row">${termSpan(cat.key, it.label)}<span class="item-value">${it.value}</span></div>`
+    const rows = cat.items.map((it) => it.scored === false
+      ? `<div class="item-row not-scored">${termSpan(cat.key, it.label)}<span class="not-scored-tag" title="Tracked for detail; not counted in this category's score">not counted</span><span class="item-value">${it.value}</span></div>`
+      : `<div class="item-row">${termSpan(cat.key, it.label)}<span class="item-value">${it.value}</span></div>`
     ).join("") || `<div class="item-row muted">No qualifying activity this quarter</div>`;
-    return `<div class="cat-block" style="border-left-color:${cc}"><div class="cat-head"><span class="cat-title-wrap"><span class="cat-dot" style="background:${cc}"></span>${termSpan(cat.key, cat.label)}</span><span>${cat.actual}/${cat.possible}</span></div>${rows}</div>`;
+    const overrideNote = cat.items_sum != null
+      ? `<div class="item-row override-note">The workbook records ${cat.actual} for this category even though the scored items above add up to ${cat.items_sum}. The score follows the workbook; worth confirming with whoever maintains it.</div>` : "";
+    return `<div class="cat-block" style="border-left-color:${cc}"><div class="cat-head"><span class="cat-title-wrap"><span class="cat-dot" style="background:${cc}"></span>${termSpan(cat.key, cat.label)}</span><span>${cat.actual}/${cat.possible}</span></div>${rows}${overrideNote}</div>`;
   }).join("");
 
   const ext = c.extended.map((it) =>
@@ -316,14 +365,18 @@ function renderDetail(charter) {
 
   const org = c.org || {};
   const orgRows = [];
-  if (org.ceo_email) orgRows.push(["CEO Email", `<a href="mailto:${org.ceo_email}">${org.ceo_email}</a>`]);
-  if (org.ceo_phone) orgRows.push(["CEO Phone", org.ceo_phone]);
+  // When the roster's CEO is a different person than the CEO shown on this page,
+  // its email/phone are labeled as that person's rather than the current CEO's.
+  const contactWho = org.contact_for ? ` <span class="contact-for">(on file for ${org.contact_for})</span>` : "";
+  if (org.contact_for) orgRows.push(["Roster CEO", `${org.contact_for} <span class="contact-for">(update pending)</span>`]);
+  if (org.ceo_email) orgRows.push([org.contact_for ? "Email on File" : "CEO Email", `<a href="mailto:${org.ceo_email}">${org.ceo_email}</a>${contactWho}`]);
+  if (org.ceo_phone) orgRows.push([org.contact_for ? "Phone on File" : "CEO Phone", `${org.ceo_phone}${contactWho}`]);
   if (org.hq_address) orgRows.push(["HQ Address", `${org.hq_address}, ${org.hq_city || ""} ${org.hq_state || ""} ${org.hq_zip || ""}`.trim()]);
   if (org.county) orgRows.push(["County", org.county]);
   if (org.cong_dist) orgRows.push(["Congressional District", org.cong_dist]);
   if (org.charter_type) orgRows.push(["Charter Type", org.charter_type]);
   if (org.chapter) orgRows.push(["Chapter / Network", org.chapter]);
-  if (org.member_status) orgRows.push(["Member Status", org.member_status]);
+  if (org.member_status && !c.member_status) orgRows.push(["Member Status", org.member_status]);
   if (org.branches != null) orgRows.push(["Branches", org.branches]);
   if (org.cdfi) orgRows.push(["CDFI Designated", org.cdfi]);
   if (org.low_income) orgRows.push(["Low-Income Designated", org.low_income]);
@@ -339,28 +392,31 @@ function renderDetail(charter) {
       <div class="group-flag">ASSET GROUP ${c.asset_group} · RANK #${c.rank} OF ${c.group_n} · #${c.overall_rank} LEAGUE-WIDE</div>
       <div class="identity">
         <div>
-          <div class="cu-name-lg">${c.cu}</div>
-          <div class="cu-meta-lg">CEO ${c.ceo || "–"} · ${c.state} · Charter #${c.charter}</div>
+          <div class="cu-name-lg">${c.cu}${memberPill(c)}</div>
+          <div class="cu-meta-lg">CEO ${c.ceo || "–"} · ${c.state || "–"} · Charter #${c.charter}</div>
+          ${c.ceo_note ? `<div class="ceo-note">${c.ceo_note}</div>` : ""}
           ${formerNameBadge}
         </div>
       </div>
       <div class="cu-stats">
         <div><div class="stat-label">Total Assets</div><div class="stat-value">${fmtMoney(c.assets)}</div></div>
         <div><div class="stat-label">Members</div><div class="stat-value">${fmtNum(c.members)}</div></div>
-        <div><div class="stat-label">FTE</div><div class="stat-value">${fmtNum(c.fte)}</div></div>
+        <div><div class="stat-label">Full-Time Staff</div><div class="stat-value">${fmtNum(c.fte)}</div></div>
+        ${c.pte != null ? `<div><div class="stat-label">Part-Time Staff</div><div class="stat-value">${fmtNum(c.pte)}</div></div>` : ""}
         <div><div class="stat-label">Asset Group Range</div><div class="stat-value" style="font-size:12px;">${fmtMoneyShort(c.group_min)}–${fmtMoneyShort(c.group_max)}</div></div>
       </div>
+      ${DATA.league.quarter ? `<div class="stats-asof">Financials as of ${DATA.league.quarter}</div>` : ""}
       <div class="score-row">
-        <div class="score-num">${c.q1_total}<span class="score-of">/${DATA.league.total_possible}</span></div>
+        <div class="score-num">${c.total}<span class="score-of">/${DATA.league.total_possible}</span></div>
         <div class="score-side">
           <span class="tier-pill ${c.tier}" style="width:fit-content;">${tierLabel(c.tier)}</span>
-          <div>${deltaHtml(c.variance)} <span style="color:var(--ink-muted);font-size:11.5px;">vs Q4 2025</span></div>
+          ${compareLabel() ? `<div>${deltaHtml(c.variance)} <span style="color:var(--ink-muted);font-size:11.5px;">vs ${compareLabel()}${c.prev_total != null ? ` (${c.prev_total}/${DATA.league.total_possible})` : ", not in that quarter's data"}</span></div>` : ""}
           <div style="font-size:11.5px;color:var(--ink-sec);">Peer average (Group ${c.asset_group}): ${c.peer_avg ?? "–"}</div>
         </div>
       </div>
       <div class="section-title">Engagement by Category</div>
       <div class="meters">${meters}</div>
-      ${anyOverflow ? `<div style="font-size:10.5px;color:var(--ink-muted);margin-top:10px;line-height:1.4;">Note: one or more categories above show more points than the usual max. The underlying data counts things like committee seats as a running total rather than a single yes/no, so a CU can exceed the typical category cap. Flagged here rather than hidden.</div>` : ""}
+      ${anyOverflow ? `<div style="font-size:10.5px;color:var(--ink-muted);margin-top:10px;line-height:1.4;">Note: one or more categories above show more points than the usual max. Some items (like GAC &amp; GRR &amp; HTH attendance) are counted as a running total rather than a single yes/no, so a CU can exceed the typical category cap. Flagged here rather than hidden.</div>` : ""}
     </div>
 
     ${orgRows.length ? `
@@ -381,20 +437,21 @@ function renderDetail(charter) {
 /* ---------------- awards ---------------- */
 function renderAwards() {
   const cus = DATA.cus;
-  const byScore = [...cus].sort((a, b) => b.q1_total - a.q1_total);
+  const byScore = [...cus].sort((a, b) => b.total - a.total);
   const champion = byScore[0];
 
   const withVar = cus.filter((c) => c.variance != null);
-  const mostImproved = [...withVar].sort((a, b) => b.variance - a.variance)[0];
-  const biggestDrop = [...withVar].sort((a, b) => a.variance - b.variance)[0];
-  const mostConsistent = [...withVar].filter((c) => c.variance === 0).sort((a, b) => b.q1_total - a.q1_total)[0];
+  const mostImproved = [...withVar].sort((a, b) => b.variance - a.variance || b.total - a.total)[0];
+  const biggestDrop = [...withVar].sort((a, b) => a.variance - b.variance || a.total - b.total)[0];
+  const since = compareLabel();
+  const mostConsistent = [...withVar].filter((c) => c.variance === 0).sort((a, b) => b.total - a.total)[0];
 
   const groupChamps = Object.keys(DATA.league.asset_groups).sort((a, b) => a - b).map((g) => {
-    const top = cus.filter((c) => String(c.asset_group) === g).sort((a, b) => b.q1_total - a.q1_total)[0];
+    const top = cus.filter((c) => String(c.asset_group) === g).sort((a, b) => b.total - a.total)[0];
     return { g, top };
   });
 
-  const perfectClub = cus.filter((c) => c.q1_total === DATA.league.total_possible);
+  const perfectClub = cus.filter((c) => c.total === DATA.league.total_possible);
 
   const catMeta = DATA.league.category_meta;
   const mvps = catMeta.map((cm) => {
@@ -415,20 +472,21 @@ function renderAwards() {
         <div class="tag">League Champion</div>
         <div class="who">${link(champion)}</div>
         <div class="why">Highest total engagement score in the league this quarter.</div>
-        <div class="fig">${champion.q1_total}/${DATA.league.total_possible} points</div>
+        <div class="fig">${champion.total}/${DATA.league.total_possible} points</div>
       </div>
+      ${since && mostImproved ? `
       <div class="award-card">
         <div class="tag">Most Improved</div>
         <div class="who">${link(mostImproved)}</div>
-        <div class="why">Biggest jump in points since Q4 2025.</div>
-        <div class="fig">+${mostImproved.variance} points</div>
+        <div class="why">Biggest jump in points since ${since}.</div>
+        <div class="fig">${mostImproved.variance > 0 ? "+" : ""}${mostImproved.variance} points</div>
       </div>
       <div class="award-card">
         <div class="tag">Steadiest</div>
         <div class="who">${mostConsistent ? link(mostConsistent) : "–"}</div>
-        <div class="why">No change vs. Q4 2025, highest score among those holding flat.</div>
-        <div class="fig">${mostConsistent ? mostConsistent.q1_total + " points, flat" : "–"}</div>
-      </div>
+        <div class="why">No change vs. ${since}, highest score among those holding flat.</div>
+        <div class="fig">${mostConsistent ? mostConsistent.total + " points, flat" : "–"}</div>
+      </div>` : ""}
     </div>
 
     ${perfectClub.length ? `
@@ -449,7 +507,7 @@ function renderAwards() {
           <div class="tag">Group ${g} · ${DATA.league.asset_groups[g].n} CUs</div>
           <div class="who">${link(top)}</div>
           <div class="why">Top score within its asset group peer set.</div>
-          <div class="fig">${top.q1_total}/${DATA.league.total_possible} points</div>
+          <div class="fig">${top.total}/${DATA.league.total_possible} points</div>
         </div>`).join("")}
     </div>
 
@@ -462,17 +520,18 @@ function renderAwards() {
           <div class="fig"${val > cm.possible ? ' style="color:var(--gold)"' : ""}>${val}/${cm.possible} points${val > cm.possible ? " *" : ""}</div>
         </div>`).join("")}
     </div>
-    <div style="font-size:10.5px;color:var(--ink-muted);margin:6px 0 0;">* exceeds the usual category max. Some items (like committee seats) count as a running total rather than yes/no.</div>
+    ${mvps.some(({ cm, val }) => val > cm.possible) ? `<div style="font-size:10.5px;color:var(--ink-muted);margin:6px 0 0;">* exceeds the usual category max. Some items (like GAC &amp; GRR &amp; HTH attendance) count as a running total rather than yes/no.</div>` : ""}
 
+    ${since && biggestDrop && biggestDrop.variance < 0 ? `
     <div class="section-title">Room for Growth</div>
     <div class="award-grid">
       <div class="award-card">
-        <div class="tag">Biggest Q1 Dip</div>
+        <div class="tag">Biggest Dip</div>
         <div class="who">${link(biggestDrop)}</div>
-        <div class="why">Largest point decrease since Q4 2025. Could be a good outreach candidate.</div>
+        <div class="why">Largest point decrease since ${since}. Could be a good outreach candidate.</div>
         <div class="fig">${biggestDrop.variance} points</div>
       </div>
-    </div>
+    </div>` : ""}
   `;
 }
 
@@ -487,14 +546,14 @@ let dirSortDir = "asc";
 
 function renderDirectory() {
   const view = document.getElementById("view");
-  const statuses = [...new Set(DATA.directory.map((d) => d.member_status).filter(Boolean))].sort();
+  const statuses = [...new Set(DATA.directory.map((d) => d.display_status || d.member_status).filter(Boolean))].sort();
   const statusOptions = statuses.map((s) => `<option value="${s}">${s}</option>`).join("");
 
   view.innerHTML = `
     <div class="section-title" style="margin-top:0;">Credit Union Directory</div>
     <p class="glossary-intro">CEO contact, HQ, and charter info for every credit union in the League's roster,
-      not just the ones with ${DATA.league.quarter || "current"} engagement data. Source: the League's roster file, kept separately from
-      the quarterly engagement export${DATA.roster_updated ? ` (roster last updated ${fmtDate(DATA.roster_updated, "long")})` : ""}.
+      not just the ones with engagement data. Contact, HQ, and charter details come from the League's roster file${DATA.roster_updated ? ` (last updated ${fmtDate(DATA.roster_updated, "long")})` : ""};
+      for credit unions that also appear in the engagement data, the CEO and member status shown match their profile page.
       Click a row to open that CU's full profile, where one exists.</p>
 
     <div class="filters">
@@ -533,18 +592,27 @@ function renderDirectory() {
   renderDirectoryBody();
 }
 
+/* display values: the engagement data's name/CEO/status when this roster entry
+   is matched to a profile (build_directory.py sets display_*), else the roster's */
+const dirName = (d) => d.display_name || d.name;
+const dirCeo = (d) => d.display_ceo || d.ceo;
+const dirStatus = (d) => d.display_status || d.member_status;
+const DIR_SORT = { name: dirName, ceo: dirCeo, member_status: dirStatus };
+
 function renderDirectoryBody() {
   const engagedCharters = new Set(DATA.cus.map((c) => c.charter));
   let rows = DATA.directory.filter((d) => {
     if (dirFilters.q) {
       const q = dirFilters.q.toLowerCase();
-      if (!d.name.toLowerCase().includes(q) && !(d.ceo || "").toLowerCase().includes(q)) return false;
+      const hay = [dirName(d), d.name, dirCeo(d), d.ceo].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
     }
-    if (dirFilters.status !== "all" && d.member_status !== dirFilters.status) return false;
+    if (dirFilters.status !== "all" && dirStatus(d) !== dirFilters.status) return false;
     return true;
   });
   rows.sort((a, b) => {
-    let av = a[dirSortKey], bv = b[dirSortKey];
+    const get = DIR_SORT[dirSortKey] || ((d) => d[dirSortKey]);
+    let av = get(a), bv = get(b);
     if (typeof av === "string") av = av.toLowerCase();
     if (typeof bv === "string") bv = bv.toLowerCase();
     if (av == null) av = "";
@@ -556,16 +624,19 @@ function renderDirectoryBody() {
 
   document.getElementById("dir-count").textContent = `${rows.length} of ${DATA.directory.length} credit unions`;
   document.getElementById("dir-body").innerHTML = rows.map((d) => {
-    const clickable = d.charter != null && engagedCharters.has(d.charter);
+    const target = d.profile ?? d.charter;
+    const clickable = target != null && engagedCharters.has(target);
     const hq = d.hq_city ? `${d.hq_city}, ${d.hq_state || ""}`.trim() : "–";
+    const onFile = d.contact_for ? `<div class="contact-for">on file for ${d.contact_for}</div>` : "";
+    const meta = [d.former_name ? `Formerly ${d.former_name}` : "", d.chapter || ""].filter(Boolean).join(" · ");
     return `
-    <tr ${clickable ? `onclick="location.hash='#/cu/${encodeURIComponent(d.charter)}'"` : ""}>
-      <td class="cu-cell"><div class="cu-name">${d.name}</div><div class="cu-meta">${d.chapter || ""}</div></td>
-      <td><div>${d.ceo || "–"}</div><div class="cu-meta">${d.ceo_email ? `<a href="mailto:${d.ceo_email}" onclick="event.stopPropagation()">${d.ceo_email}</a>` : ""}</div></td>
-      <td>${d.ceo_phone || "–"}</td>
+    <tr ${clickable ? `onclick="location.hash='#/cu/${encodeURIComponent(target)}'"` : ""}>
+      <td class="cu-cell"><div class="cu-name">${dirName(d)}</div><div class="cu-meta">${meta}</div></td>
+      <td><div>${dirCeo(d) || "–"}</div><div class="cu-meta">${d.ceo_email ? `<a href="mailto:${d.ceo_email}" onclick="event.stopPropagation()">${d.ceo_email}</a>` : ""}</div>${d.ceo_email ? onFile : ""}</td>
+      <td>${d.ceo_phone || "–"}${d.ceo_phone && !d.ceo_email ? onFile : ""}</td>
       <td>${hq}</td>
       <td>${d.charter_type || "–"}</td>
-      <td>${d.member_status || "–"}</td>
+      <td>${dirStatus(d) || "–"}</td>
       <td>${d.branches ?? "–"}</td>
     </tr>`;
   }).join("");
