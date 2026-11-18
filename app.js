@@ -161,11 +161,13 @@ function renderUpdatedStamp() {
 
   const dataDate = L.as_of || L.last_updated;
   const pill = document.getElementById("updated-pill");
-  if (pill && dataDate) {
-    pill.textContent = `Updated ${fmtDate(dataDate, "short")}`;
-    const parts = [`Data last updated ${fmtDate(dataDate, "long")}`];
+  if (pill && L.last_updated) {
+    // the header badge shows when the site's data was last rebuilt; the date the
+    // workbook itself was last updated is in the tooltip and the footer
+    pill.textContent = `Site Last Refreshed ${fmtDate(L.last_updated, "short")}`;
+    const parts = [`Site last refreshed ${fmtDate(L.last_updated, "long")}`];
+    if (L.as_of) parts.push(`Data last updated ${fmtDate(L.as_of, "long")} (per the workbook)`);
     if (L.source_file) parts.push(`Source: ${L.source_file}${L.source_sheet ? ` ("${L.source_sheet}" tab)` : ""}`);
-    if (L.last_updated && L.last_updated !== dataDate) parts.push(`Site refreshed ${fmtDate(L.last_updated, "long")}`);
     pill.title = parts.join("\n");
     pill.hidden = false;
   }
@@ -430,7 +432,7 @@ function renderDetail(charter) {
       <div class="checklist-grid">${checklist}</div>
     </div>
 
-    ${ext ? `<div class="detail-card"><div class="section-title">Extended Activity Detail</div><div class="ext-grid">${ext}</div></div>` : ""}
+    ${ext ? `<div class="detail-card"><div class="section-title">Extended Activity Detail <a class="source-tag" href="participation.html#activity" title="See how every credit union ranks on these measures">see leaderboards &rarr;</a></div><div class="ext-grid">${ext}</div></div>` : ""}
   `;
 }
 

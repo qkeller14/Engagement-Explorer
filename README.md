@@ -20,7 +20,7 @@ it's a few clicks in your own account:
    access below before deciding.
 2. Upload all the files in this folder (`index.html`, `styles.css`, `app.js`,
    `engagement.json`, `build_data.py`, `build_directory.py`, `reach.html`,
-   this `README.md`)
+   `participation.html`, this `README.md`)
    to that repo, either drag-and-drop in the GitHub web UI ("Add file →
    Upload files"), or `git push` if you're comfortable with git. Keep them
    all at the top level of the repo, no subfolders. (The source workbooks,
@@ -118,14 +118,14 @@ back. Then upload the new `engagement.json` to the GitHub repo.
 - Rows with no assets reported or no asset group are left off (they can't
   be placed in a peer group). The build prints which ones.
 
-### The "Last updated" date
+### The "Site Last Refreshed" date
 
-The badge in the header ("Updated Sep 20, 2026") shows when the data itself
-was last updated, taken from the "Last Updated" row of the "Source Data" tab
-(the newest date in that row). Hover over it to see the source file and the
-date the site was last rebuilt. The footer shows both dates too, and it
-appears on printed/PDF pages. Nothing to edit by hand. If the tab has no
-"Last Updated" row, the date the site was rebuilt is shown instead.
+The badge in the header ("Site Last Refreshed Nov 18, 2026") is the date
+`build_data.py` was last run, i.e. when the site's data was last rebuilt.
+Hover over it to see the date the workbook itself was last updated (the
+newest date in the "Source Data" tab's "Last Updated" row) and the source
+file. The footer shows both dates and appears on printed/PDF pages. Nothing
+to edit by hand.
 
 ### Glossary
 
@@ -173,6 +173,39 @@ layout (`Credit Unions + CEO List (All 3`, `League Membership Status (Dues)`,
   aren't included.** That sheet only has a credit union name to key off of,
   no charter number, and some names are similar enough that automatic
   matching risked attaching a branch to the wrong CU.
+
+## Participation tab (participation.html)
+
+A leaderboard of how many of the 27 scored initiatives each credit union has
+completed: headline cards, search, asset-size / member-status / category /
+status filters, sorting by rank, name, category, or any single initiative,
+gold/silver/bronze for the top three ranks, an expandable row showing what's
+done and what's missing, and a "Copy summary" button that puts a short
+text summary of the top performers on the clipboard.
+
+It reads `engagement.json` directly, so it updates automatically whenever the
+data is refreshed (no separate rebuild). It needs the `initiatives` list that
+the current `build_data.py` writes into `engagement.json`.
+
+A second view, **Activity leaderboards** (`participation.html#activity`,
+also linked from each profile's "Extended Activity Detail" panel), ranks
+credit unions on each of the 41 numeric measures in the extended activity
+detail (PAC dollars, hot line calls, email opens, training registrations,
+event attendance, CEO call rate, and so on), grouped by section. You can
+filter by asset size and member status, switch between top 5 and top 10,
+expand any board to the full list, "spotlight" one credit union to see where
+it ranks on every board, and copy a top-3 summary. Measures where every
+participant has the same value (e.g. attended once) list who took part
+instead of ranking them. Dates and text fields aren't ranked. The list of
+measures comes from `build_data.py` (`extended_metrics` in engagement.json).
+
+- **Completed** = any participation recorded for that item (a number above
+  zero, Yes/True, or a date).
+- **Rank** = initiatives completed, then engagement score; identical results
+  share a rank, so a few positions differ from the main Leaderboard (which
+  ranks by score alone).
+- **Needs follow-up** = under 40% of initiatives, in line with the
+  "Low Engagement" tier (under 11 of 28 points).
 
 ## REACH 2026 tab (reach.html)
 

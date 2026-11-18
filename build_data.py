@@ -42,6 +42,16 @@ CATS = [
 TOTAL_POSSIBLE = sum(c[3] for c in CATS)
 assert TOTAL_POSSIBLE == 28
 
+# Section headers inside the extended activity detail, mapped to a display name
+# and the scored category they belong with (used to color the leaderboards).
+EXT_SECTIONS = {
+    "Advocacy": ("Advocacy", "advocacy"), "Compliance Support": ("Compliance Support", "compliance"),
+    "Ceritcation Programs": ("Certification Programs", "education"), "Certification Programs": ("Certification Programs", "education"),
+    "Programs & Series": ("Programs, Series & eTrain", "education"), "Communications": ("Communications (email opens)", "communications"),
+    "Collaborative Events": ("Collaborative Events", "collab"), "Networks": ("Networks", "collab"),
+    "Community Impact": ("Networks", "collab"),
+}
+
 # Membership codes used in the "Member" column. No legend exists in the workbook;
 # A-M is labeled the same way the roster file's "AM" code has been labeled on the site.
 MEMBER_LABELS = {"M": "Member", "N-M": "Non-Member", "NM": "Non-Member", "A-M": "Associate Member", "AM": "Associate Member"}
@@ -72,6 +82,10 @@ def clean_value(label, v):
         return v or None
     if isinstance(v, datetime.datetime):
         return f"{v.month}/{v.day}/{v.year}"
+    if isinstance(v, (int, float)) and "date" in label.lower() and 20000 < v < 80000:
+        # a date typed in as an Excel serial number (e.g. 46752 = 12/31/2027)
+        d = datetime.date(1899, 12, 30) + datetime.timedelta(days=int(v))
+        return f"{d.month}/{d.day}/{d.year}"
     if isinstance(v, float) and "%" in label:
         return f"{round(v * 100)}%"
     if isinstance(v, float) and v.is_integer():
@@ -178,8 +192,31 @@ def read_tab(path, sheet):
     ext_start = (peer_cols[0] + 1) if peer_cols else None
     last_hdr = max(i for i, h in enumerate(header) if h)
 
+    # Extended activity detail: which columns are rankable metrics (for the
+    # activity leaderboards), what kind of number each is, and which section
+    # header it sits under.
+    metrics = []
+    if ext_start:
+        section, sec_key = None, None
+        for i in range(ext_start, last_hdr + 1):
+            h = header[i]
+            if not h or h.lower().startswith("open"):
+                continue
+            if h in EXT_SECTIONS:
+                section, sec_key = EXT_SECTIONS[h]
+                continue
+            vals = [r[i] for _, r in data_rows if i < len(r) and r[i] not in (None, "", 0)
+                    and not (isinstance(r[i], str) and not r[i].strip())]
+            if not vals:
+                continue  # no activity recorded for anyone yet
+            if "date" in h.lower() or any(isinstance(v, (datetime.datetime, str)) for v in vals):
+                continue  # dates / text: shown on profiles, not rankable
+            kind = "percent" if "%" in h else "money" if "PAC" in h else "count"
+            label = "Permission Agmt Expires" if h == "Permission Agreement Expiration Date" else h
+            metrics.append({"label": label, "section": section, "key": sec_key, "type": kind})
+
     return {"sheet": sheet, "header": header, "C": C, "cats": cats, "rows": data_rows,
-            "ext_range": (ext_start, last_hdr) if ext_start else None,
+            "ext_range": (ext_start, last_hdr) if ext_start else None, "metrics": metrics,
             "financial_period": financial_period, "as_of": as_of}
 
 
@@ -336,6 +373,11 @@ league = {
     "category_avgs": {key: round(sum(next(c["actual"] for c in d["categories"] if c["key"] == key) for d in records) / n, 2)
                       for key, *_ in CATS},
     "category_meta": [{"key": k, "label": l, "possible": p} for k, l, _h, p in CATS],
+    # Every scored item (initiative) per category, in workbook column order. The
+    # Participation page uses this to show what each CU has and hasn't done.
+    "extended_metrics": tab["metrics"],
+    "initiatives": [{"key": cat["key"], "label": cat["label"],
+                     "items": [tab["header"][i] for i in cat["items"] if i in cat["scored"]]} for cat in tab["cats"]],
     "asset_groups": {g: {"n": len(items), "min": min(d["assets"] for d in items), "max": max(d["assets"] for d in items)}
                      for g, items in by_group.items()},
 }
