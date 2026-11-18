@@ -19,7 +19,8 @@ it's a few clicks in your own account:
    `engagement-explorer`. It can be **public or private**; see the note on
    access below before deciding.
 2. Upload all the files in this folder (`index.html`, `styles.css`, `app.js`,
-   `engagement.json`, `build_data.py`, `build_directory.py`, this `README.md`)
+   `engagement.json`, `build_data.py`, `build_directory.py`, `reach.html`,
+   this `README.md`)
    to that repo, either drag-and-drop in the GitHub web UI ("Add file →
    Upload files"), or `git push` if you're comfortable with git. Keep them
    all at the top level of the repo, no subfolders. (The source workbooks,
@@ -172,6 +173,41 @@ layout (`Credit Unions + CEO List (All 3`, `League Membership Status (Dues)`,
   aren't included.** That sheet only has a credit union name to key off of,
   no charter number, and some names are similar enough that automatic
   matching risked attaching a branch to the wrong CU.
+
+## REACH 2026 tab (reach.html)
+
+The "REACH 2026" tab opens `reach.html`, an attendee explorer: a map of
+attendees by credit union HQ city, headline numbers, filters (search, role
+group, location, registration type), a sortable attendee table, and an
+"Export filtered CSV" button for follow-up lists.
+
+**No attendee data is stored on the website.** Attendee names and emails
+are personal contact details, and this site is reachable by anyone with
+the link, so `reach.html` ships empty: whoever opens it chooses the attendee
+spreadsheet from their computer and it's read entirely in their browser.
+Nothing is uploaded or saved. A new or updated attendee export works without
+any rebuild, as long as it has columns like First Name, Last Name, Title,
+Credit Union, Email, Work City, Work State.
+
+A separate copy with the current attendee list built in
+(`REACH_2026_Dashboard.html`) is for sharing inside the League only, e.g. on
+SharePoint or Teams. Don't upload that one to GitHub.
+
+How the dashboard prepares the data:
+
+- **Map location** is each credit union's HQ city from the League roster
+  (built into the page). If a credit union isn't in the roster, the
+  attendee's work city from the spreadsheet is used.
+- **Role groups** come from job titles: C-suite = CEO, President, or any
+  "Chief … Officer" title; VP / SVP includes EVP and AVP; Board / Volunteer
+  covers board, supervisory committee, chair, treasurer, and a bare
+  "Director" title.
+- **Credit unions represented** merges spelling variants and doesn't count
+  vendors, foundations, or League staff.
+- Note rows at the bottom of the spreadsheet are skipped.
+- Map background tiles come from CARTO / OpenStreetMap (no account or API
+  key needed). Opening a spreadsheet loads a free spreadsheet reader
+  (SheetJS) from cdnjs.
 
 ## What's on each page
 
