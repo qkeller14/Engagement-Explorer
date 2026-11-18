@@ -202,9 +202,9 @@ How the dashboard prepares the data:
 - **Credit unions represented** merges spelling variants and doesn't count
   vendors, foundations, or League staff.
 - Note rows at the bottom of the spreadsheet are skipped.
-- Map background tiles come from CARTO / OpenStreetMap (no account or API
-  key needed). Opening a spreadsheet loads a free spreadsheet reader
-  (SheetJS) from cdnjs.
+- The map background (state and California/Nevada county outlines, U.S.
+  Census boundaries) is built into the page, so it needs no map service,
+  account, or API key.
 
 ## What's on each page
 
