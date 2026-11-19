@@ -180,13 +180,17 @@ The interactive pages draw their numbers with JavaScript, so AI tools that
 read a link (like Claude's web fetch) only see an empty page. `ai-summary.html`
 is a plain, static page with the same key numbers as simple tables: service
 usage by size tier and by membership status, volume by tier, engagement by
-tier, initiative participation, and the top 5 on each activity measure. Give
-an AI tool this link instead of the interactive pages. It has no contact
+tier, initiative participation, and the top 5 on each activity measure. The same
+text is also built into `index.html`, `usage.html`, and `participation.html`
+(hidden from people and removed as soon as the page loads), so pasting any of
+those links into an AI tool works too. `reach.html` carries its own text
+summary of REACH registrant counts by role, state, city, and credit union,
+with no names or emails. It has no contact
 details and no PAC dollar amounts, and like `engagement.json` it opens
 without the passphrase for anyone with the link.
 
 Regenerate it after any data refresh (after `build_data.py` and
-`build_directory.py`):
+`build_directory.py`); this also refreshes the hidden text in the other pages:
 
 ```
 python3 build_summary.py

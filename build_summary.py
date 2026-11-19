@@ -234,6 +234,7 @@ out.append("""<h2>Notes</h2><ul>
 <li>"Using a service" means any activity recorded in the engagement workbook's 12-month data (a count above zero, or a completed checklist item). PolicyPro is counted as log-ins.</li>
 <li>The engagement score has 27 initiatives but 28 possible points: Advocacy is worth 9 points with 8 initiatives, and the extra point can only come from the GAC &amp; GRR &amp; HTH item being recorded as more than 1.</li>
 <li>Government Relations Rally, Government Affairs Conference, and Hike the Hill are tracked individually but scored through the combined GAC &amp; GRR &amp; HTH item.</li>
+<li>REACH 2026 registrant counts (by role, city, and credit union) are summarized in text on the REACH page itself, reach.html.</li>
 </ul>""")
 
 page = f"""<!doctype html>
@@ -252,3 +253,23 @@ tr.sec td{{background:#eff6ff;font-weight:700;color:#1e3a8a;text-transform:upper
 </main></body></html>"""
 open(OUT, "w").write(page)
 print(f"wrote {OUT}: {len(rows)} services, {len(cus)} credit unions, {len(members)} members")
+
+# --- Put the same text inside the interactive pages, so that pasting ANY site link
+# into an AI tool works. The block is hidden from people (and removed as soon as
+# the page loads); tools that read a link without running JavaScript see it.
+START, END = "<!--AI-SUMMARY-START-->", "<!--AI-SUMMARY-END-->"
+block = (START + '\n<style>#ai-summary{display:none}</style>\n<div id="ai-summary">\n'
+         '<p><b>Text version for AI tools and screen readers.</b> This page is an interactive dashboard that needs JavaScript and a '
+         'passphrase. Its data is summarized below; the same summary is at ai-summary.html.</p>\n'
+         + "\n".join(out) + '\n</div>\n<script>(function(){var e=document.getElementById("ai-summary");if(e)e.remove();})();</script>\n' + END)
+for name in ("index.html", "usage.html", "participation.html"):
+    path = os.path.join(os.path.dirname(OUT), name)
+    if not os.path.exists(path):
+        continue
+    page_html = open(path).read()
+    page_html = re.sub(re.escape(START) + r".*?" + re.escape(END) + r"\n?", "", page_html, flags=re.S)
+    i = page_html.rfind("</body>")
+    if i < 0:
+        continue
+    open(path, "w").write(page_html[:i] + block + "\n" + page_html[i:])
+    print(f"  added text summary to {name}")
