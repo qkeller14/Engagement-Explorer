@@ -20,7 +20,7 @@ it's a few clicks in your own account:
    access below before deciding.
 2. Upload all the files in this folder (`index.html`, `styles.css`, `app.js`,
    `engagement.json`, `build_data.py`, `build_directory.py`, `reach.html`,
-   `participation.html`, this `README.md`)
+   `participation.html`, `usage.html`, this `README.md`)
    to that repo, either drag-and-drop in the GitHub web UI ("Add file →
    Upload files"), or `git push` if you're comfortable with git. Keep them
    all at the top level of the repo, no subfolders. (The source workbooks,
@@ -173,6 +173,32 @@ layout (`Credit Unions + CEO List (All 3`, `League Membership Status (Dues)`,
   aren't included.** That sheet only has a credit union name to key off of,
   no charter number, and some names are similar enough that automatic
   matching risked attaching a branch to the wrong CU.
+
+## Service Usage tab (usage.html)
+
+Who uses League services powered by Fuel, by credit union size, built to
+tell the utilization story behind the "How credit unions use League
+services" report:
+
+- A heatmap of the share of each asset tier using each service (compliance
+  hotline, InfoSight, PolicyPro, ViClarity services, online education,
+  eTrain, programs and series, Compliance Essentials, certificate programs,
+  Financial Counselors Academy, CEO calls, Local Networks, Shapiro Network,
+  CEO roundtables, REACH, Connect for the Cause, GAC/GRR/Hike the Hill).
+  Click any cell for the credit unions using and not using that service,
+  with a "copy names" button for outreach lists.
+- Volume by tier (total and per user), engagement scores by tier on the
+  site's 28-point basis, and four headline figures computed from the data.
+- Members by default; associate members, non-members, or everyone with one
+  click. "Copy table" puts the tier table on the clipboard for Excel or
+  slides, and there's a Print / PDF button.
+
+Tiers use the report's asset cutoffs (under $57M, $58M-$274M, $275M-$1.24B,
+$1.27B+), split at the midpoints and applied to current assets. Like the
+Participation tab, it reads `engagement.json` directly and needs no rebuild
+when the data is refreshed. If a measure is renamed in a future workbook,
+update its name in the SERVICES list in the page source (ask Claude to
+rebuild `usage.html`).
 
 ## Participation tab (participation.html)
 
