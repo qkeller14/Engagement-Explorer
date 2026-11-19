@@ -19,8 +19,8 @@ it's a few clicks in your own account:
    `engagement-explorer`. It can be **public or private**; see the note on
    access below before deciding.
 2. Upload all the files in this folder (`index.html`, `styles.css`, `app.js`,
-   `engagement.json`, `build_data.py`, `build_directory.py`, `reach.html`,
-   `participation.html`, `usage.html`, this `README.md`)
+   `engagement.json`, `build_data.py`, `build_directory.py`, `build_summary.py`,
+   `reach.html`, `participation.html`, `usage.html`, `ai-summary.html`, this `README.md`)
    to that repo, either drag-and-drop in the GitHub web UI ("Add file →
    Upload files"), or `git push` if you're comfortable with git. Keep them
    all at the top level of the repo, no subfolders. (The source workbooks,
@@ -173,6 +173,24 @@ layout (`Credit Unions + CEO List (All 3`, `League Membership Status (Dues)`,
   aren't included.** That sheet only has a credit union name to key off of,
   no charter number, and some names are similar enough that automatic
   matching risked attaching a branch to the wrong CU.
+
+## Plain data summary for AI tools (ai-summary.html)
+
+The interactive pages draw their numbers with JavaScript, so AI tools that
+read a link (like Claude's web fetch) only see an empty page. `ai-summary.html`
+is a plain, static page with the same key numbers as simple tables: service
+usage by size tier and by membership status, volume by tier, engagement by
+tier, initiative participation, and the top 5 on each activity measure. Give
+an AI tool this link instead of the interactive pages. It has no contact
+details and no PAC dollar amounts, and like `engagement.json` it opens
+without the passphrase for anyone with the link.
+
+Regenerate it after any data refresh (after `build_data.py` and
+`build_directory.py`):
+
+```
+python3 build_summary.py
+```
 
 ## Service Usage tab (usage.html)
 
